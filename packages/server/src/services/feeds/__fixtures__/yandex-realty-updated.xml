@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Тот же фид сутки спустя:
+   - SP-1202 продана и пропала из выгрузки;
+   - у SP-1201 снизилась цена и изменился этаж;
+   - появился новый лот SP-1401 в том же ЖК.
+-->
+<realty-feed xmlns="http://webmaster.yandex.ru/schemas/feed/realty/2010-06">
+  <generation-date>2026-07-21T09:15:00+03:00</generation-date>
+
+  <offer internal-id="SP-1201">
+    <type>продажа</type>
+    <category>квартира</category>
+    <url>https://dom-sever.ru/flats/SP-1201</url>
+    <location>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Головинский</sub-locality-name>
+      <address>Ленинградское шоссе, 25, корп. 3</address>
+      <metro>
+        <name>Водный стадион</name>
+        <time-on-foot>11</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>ГК «Северный дом»</organization>
+    </sales-agent>
+    <price>
+      <value>17 990 000</value>
+      <currency>RUR</currency>
+    </price>
+    <area>
+      <value>62,4</value>
+      <unit>кв. м</unit>
+    </area>
+    <rooms>2</rooms>
+    <floor>8</floor>
+    <floors-total>24</floors-total>
+    <building-name>ЖК «Северный парк»</building-name>
+    <building-section>Корпус 3</building-section>
+    <built-year>2027</built-year>
+    <ready-quarter>2</ready-quarter>
+    <renovation>чистовая</renovation>
+    <image>https://dom-sever.ru/plans/SP-1201.png</image>
+  </offer>
+
+  <offer internal-id="SP-1310">
+    <type>продажа</type>
+    <category>квартира</category>
+    <url>https://dom-sever.ru/flats/SP-1310</url>
+    <location>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Головинский</sub-locality-name>
+      <metro>
+        <name>Водный стадион</name>
+        <time-on-foot>14</time-on-foot>
+      </metro>
+    </location>
+    <price>
+      <value>27 300 000</value>
+      <currency>RUR</currency>
+    </price>
+    <area>
+      <value>88,9</value>
+      <unit>кв. м</unit>
+    </area>
+    <rooms>3</rooms>
+    <floor>19</floor>
+    <floors-total>24</floors-total>
+    <building-name>ЖК «Северный парк»</building-name>
+    <building-section>Корпус 5</building-section>
+    <built-year>2028</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>предчистовая</renovation>
+  </offer>
+
+  <offer internal-id="SP-1401">
+    <type>продажа</type>
+    <category>квартира</category>
+    <url>https://dom-sever.ru/flats/SP-1401</url>
+    <location>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Головинский</sub-locality-name>
+      <metro>
+        <name>Водный стадион</name>
+        <time-on-foot>12</time-on-foot>
+      </metro>
+    </location>
+    <price>
+      <value>21 100 000</value>
+      <currency>RUR</currency>
+    </price>
+    <area>
+      <value>68,0</value>
+      <unit>кв. м</unit>
+    </area>
+    <rooms>2</rooms>
+    <floor>15</floor>
+    <floors-total>24</floors-total>
+    <building-name>ЖК «Северный парк»</building-name>
+    <building-section>Корпус 5</building-section>
+    <built-year>2028</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>чистовая</renovation>
+  </offer>
+
+  <offer internal-id="RZ-204">
+    <type>продажа</type>
+    <category>квартира</category>
+    <url>https://dom-sever.ru/flats/RZ-204</url>
+    <location>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Раменки</sub-locality-name>
+      <metro>
+        <name>Мичуринский проспект</name>
+        <time-on-foot>8</time-on-foot>
+      </metro>
+    </location>
+    <price>
+      <value>34 750 000</value>
+      <currency>RUR</currency>
+    </price>
+    <area>
+      <value>74,6</value>
+      <unit>кв. м</unit>
+    </area>
+    <rooms>2</rooms>
+    <floor>12</floor>
+    <floors-total>17</floors-total>
+    <building-name>ЖК «Лобачевский»</building-name>
+    <building-section>Корпус 1</building-section>
+    <built-year>2026</built-year>
+    <ready-quarter>4</ready-quarter>
+  </offer>
+
+  <offer internal-id="RZ-205">
+    <type>продажа</type>
+    <category>квартира</category>
+    <url>https://dom-sever.ru/flats/RZ-205</url>
+    <location>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Раменки</sub-locality-name>
+    </location>
+    <price>
+      <value>12,5 млн</value>
+      <currency>RUR</currency>
+    </price>
+    <area>
+      <value>38,2</value>
+      <unit>кв. м</unit>
+    </area>
+    <rooms>1</rooms>
+    <floor>4</floor>
+    <floors-total>17</floors-total>
+    <building-name>ЖК «Лобачевский»</building-name>
+    <built-year>2026</built-year>
+    <ready-quarter>4</ready-quarter>
+  </offer>
+</realty-feed>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<realty-feed xmlns="http://webmaster.yandex.ru/schemas/feed/realty/2010-06">
+  <generation-date>2026-07-20T09:15:00+03:00</generation-date>
+  <offer internal-id="SP-1201">
+    <price>
+      <value>18 450 000</value>
+    </price>
+    <area>
+      <value>62,4</value>
+    </offer>
+  <offer internal-id="SP-1202"
+    <price><value>9 890 000</value></price>
+  </offer>
+</realty-feed>

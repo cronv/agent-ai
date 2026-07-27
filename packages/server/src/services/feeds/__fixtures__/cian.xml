@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed>
+  <feed_version>2</feed_version>
+
+  <object>
+    <ExternalId>CN-77-004410</ExternalId>
+    <Category>flatSale</Category>
+    <Url>https://novostroy.example.ru/lot/CN-77-004410</Url>
+    <Description>Просторная двухкомнатная квартира в монолитном доме. Панорамное остекление, два лифта OTIS.</Description>
+    <Address>Москва, ЗАО, ул. Лобачевского, 120</Address>
+    <District>Раменки</District>
+    <Coordinates>
+      <Lat>55.678900</Lat>
+      <Lng>37.489100</Lng>
+    </Coordinates>
+    <Undergrounds>
+      <Underground>
+        <Name>Мичуринский проспект</Name>
+        <TimeType>foot</TimeType>
+        <Time>8</Time>
+      </Underground>
+      <Underground>
+        <Name>Раменки</Name>
+        <TimeType>transport</TimeType>
+        <Time>6</Time>
+      </Underground>
+    </Undergrounds>
+    <Phones>
+      <PhoneSchema>
+        <CountryCode>+7</CountryCode>
+        <Number>4951204545</Number>
+      </PhoneSchema>
+    </Phones>
+    <TotalArea>74,6</TotalArea>
+    <LivingArea>41.0</LivingArea>
+    <KitchenArea>15,9</KitchenArea>
+    <RoomsCount>2</RoomsCount>
+    <FlatType>rooms</FlatType>
+    <FloorNumber>12</FloorNumber>
+    <IsApartments>False</IsApartments>
+    <Decoration>fine</Decoration>
+    <WindowsViewType>yard</WindowsViewType>
+    <BargainTerms>
+      <Price>34750000</Price>
+      <Currency>rur</Currency>
+      <SaleType>dupt</SaleType>
+      <MortgageAllowed>true</MortgageAllowed>
+    </BargainTerms>
+    <Building>
+      <FloorsCount>17</FloorsCount>
+      <MaterialType>monolith</MaterialType>
+      <BuildYear>2026</BuildYear>
+      <Deadline>
+        <Quarter>fourth</Quarter>
+        <Year>2026</Year>
+      </Deadline>
+      <Developer>Компания «Раменки Девелопмент»</Developer>
+      <PassengerLiftsCount>2</PassengerLiftsCount>
+    </Building>
+    <JKSchema>
+      <Id>84211</Id>
+      <Name>ЖК «Лобачевский»</Name>
+      <Url>https://novostroy.example.ru/jk/lobachevskiy</Url>
+      <Developer>
+        <Id>1204</Id>
+        <Name>Компания «Раменки Девелопмент»</Name>
+      </Developer>
+      <House>
+        <Id>551201</Id>
+        <Name>Корпус 1</Name>
+        <Section>2</Section>
+      </House>
+    </JKSchema>
+    <LayoutPhoto>
+      <FullUrl>https://novostroy.example.ru/plans/CN-77-004410.png</FullUrl>
+      <IsDefault>true</IsDefault>
+    </LayoutPhoto>
+    <Photos>
+      <PhotoSchema>
+        <FullUrl>https://novostroy.example.ru/photos/CN-77-004410-1.jpg</FullUrl>
+        <IsDefault>true</IsDefault>
+      </PhotoSchema>
+      <PhotoSchema>
+        <FullUrl>https://novostroy.example.ru/photos/CN-77-004410-2.jpg</FullUrl>
+        <IsDefault>false</IsDefault>
+      </PhotoSchema>
+    </Photos>
+  </object>
+
+  <object>
+    <ExternalId>CN-77-004411</ExternalId>
+    <Category>flatSale</Category>
+    <Url>https://novostroy.example.ru/lot/CN-77-004411</Url>
+    <Description>Студия с окном в санузле, сдаётся с предчистовой отделкой.</Description>
+    <Address>Москва, ЗАО, ул. Лобачевского, 120</Address>
+    <District>Раменки</District>
+    <Undergrounds>
+      <Underground>
+        <Name>Мичуринский проспект</Name>
+        <TimeType>foot</TimeType>
+        <Time>8</Time>
+      </Underground>
+    </Undergrounds>
+    <TotalArea>24,8</TotalArea>
+    <KitchenArea>0</KitchenArea>
+    <RoomsCount>1</RoomsCount>
+    <FlatType>studio</FlatType>
+    <FloorNumber>3</FloorNumber>
+    <IsApartments>False</IsApartments>
+    <Decoration>preFine</Decoration>
+    <BargainTerms>
+      <Price>8 990 000</Price>
+      <Currency>rur</Currency>
+      <MortgageAllowed>true</MortgageAllowed>
+    </BargainTerms>
+    <Building>
+      <FloorsCount>17</FloorsCount>
+      <MaterialType>monolith</MaterialType>
+      <Deadline>
+        <Quarter>fourth</Quarter>
+        <Year>2026</Year>
+      </Deadline>
+    </Building>
+    <JKSchema>
+      <Id>84211</Id>
+      <Name>ЖК «Лобачевский»</Name>
+      <Url>https://novostroy.example.ru/jk/lobachevskiy</Url>
+      <Developer>
+        <Id>1204</Id>
+        <Name>Компания «Раменки Девелопмент»</Name>
+      </Developer>
+      <House>
+        <Id>551201</Id>
+        <Name>Корпус 1</Name>
+        <Section>1</Section>
+      </House>
+    </JKSchema>
+    <LayoutPhoto>
+      <FullUrl>https://novostroy.example.ru/plans/CN-77-004411.png</FullUrl>
+    </LayoutPhoto>
+  </object>
+
+  <object>
+    <ExternalId>CN-77-009002</ExternalId>
+    <Category>flatSale</Category>
+    <Url>https://novostroy.example.ru/lot/CN-77-009002</Url>
+    <Description>Трёхкомнатная квартира с террасой на последнем этаже.</Description>
+    <Address>Москва, САО, Ленинградское шоссе, 25</Address>
+    <District>Головинский</District>
+    <Undergrounds>
+      <Underground>
+        <Name>Водный стадион</Name>
+        <TimeType>foot</TimeType>
+        <Time>11</Time>
+      </Underground>
+    </Undergrounds>
+    <TotalArea>102,4</TotalArea>
+    <LivingArea>58,7</LivingArea>
+    <KitchenArea>19,2</KitchenArea>
+    <RoomsCount>3</RoomsCount>
+    <FlatType>rooms</FlatType>
+    <FloorNumber>24</FloorNumber>
+    <IsApartments>False</IsApartments>
+    <Decoration>without</Decoration>
+    <BargainTerms>
+      <Price>41 200 000</Price>
+      <Currency>rur</Currency>
+      <MortgageAllowed>true</MortgageAllowed>
+    </BargainTerms>
+    <Building>
+      <FloorsCount>24</FloorsCount>
+      <MaterialType>monolith</MaterialType>
+      <Deadline>
+        <Quarter>second</Quarter>
+        <Year>2027</Year>
+      </Deadline>
+    </Building>
+    <JKSchema>
+      <Id>90114</Id>
+      <Name>ЖК «Северный парк»</Name>
+      <Url>https://novostroy.example.ru/jk/severnyy-park</Url>
+      <Developer>
+        <Id>2210</Id>
+        <Name>ГК «Северный дом»</Name>
+      </Developer>
+      <House>
+        <Id>770021</Id>
+        <Name>Корпус 3</Name>
+        <Section>4</Section>
+      </House>
+    </JKSchema>
+    <LayoutPhoto>
+      <FullUrl>https://novostroy.example.ru/plans/CN-77-009002.png</FullUrl>
+    </LayoutPhoto>
+  </object>
+
+  <object>
+    <ExternalId>CN-77-009003</ExternalId>
+    <Category>flatSale</Category>
+    <Url>https://novostroy.example.ru/lot/CN-77-009003</Url>
+    <Description>Однокомнатная квартира, ипотека от 4,5% от банка-партнёра.</Description>
+    <Address>Москва, САО, Ленинградское шоссе, 25</Address>
+    <District>Головинский</District>
+    <Undergrounds>
+      <Underground>
+        <Name>Водный стадион</Name>
+        <TimeType>foot</TimeType>
+        <Time>11</Time>
+      </Underground>
+    </Undergrounds>
+    <TotalArea>41,3</TotalArea>
+    <LivingArea>18,6</LivingArea>
+    <KitchenArea>11,1</KitchenArea>
+    <RoomsCount>1</RoomsCount>
+    <FlatType>rooms</FlatType>
+    <FloorNumber>9</FloorNumber>
+    <IsApartments>False</IsApartments>
+    <Decoration>rough</Decoration>
+    <BargainTerms>
+      <Price>13 640 000</Price>
+      <Currency>rur</Currency>
+      <MortgageAllowed>true</MortgageAllowed>
+    </BargainTerms>
+    <Building>
+      <FloorsCount>24</FloorsCount>
+      <Deadline>
+        <Quarter>second</Quarter>
+        <Year>2027</Year>
+      </Deadline>
+    </Building>
+    <JKSchema>
+      <Id>90114</Id>
+      <Name>ЖК «Северный парк»</Name>
+      <Developer>
+        <Id>2210</Id>
+        <Name>ГК «Северный дом»</Name>
+      </Developer>
+      <House>
+        <Id>770021</Id>
+        <Name>Корпус 3</Name>
+        <Section>2</Section>
+      </House>
+    </JKSchema>
+    <LayoutPhoto>
+      <FullUrl>https://novostroy.example.ru/plans/CN-77-009003.png</FullUrl>
+    </LayoutPhoto>
+  </object>
+</feed>

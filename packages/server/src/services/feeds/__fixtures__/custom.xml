@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Самописная выгрузка небольшого застройщика: свои имена тегов. -->
+<export>
+  <generated>2026-07-20</generated>
+  <lots>
+    <lot id="A-101">
+      <complex>ЖК «Гагаринский»</complex>
+      <builder>СтройГрад</builder>
+      <cost>9 750 000</cost>
+      <square>41,7</square>
+      <kitchen>10,2</kitchen>
+      <room_count>1</room_count>
+      <level>6</level>
+      <levels>14</levels>
+      <korpus>Корпус А</korpus>
+      <finish>черновая</finish>
+      <ready>2027-06-30</ready>
+      <plan>https://stroygrad.example.ru/plans/A-101.png</plan>
+      <link>https://stroygrad.example.ru/lots/A-101</link>
+      <subway>Гагаринская</subway>
+      <subway_minutes>7</subway_minutes>
+    </lot>
+    <lot id="A-102">
+      <complex>ЖК «Гагаринский»</complex>
+      <builder>СтройГрад</builder>
+      <cost>6 280 000</cost>
+      <square>26,4</square>
+      <room_count>студия</room_count>
+      <level>2</level>
+      <levels>14</levels>
+      <korpus>Корпус А</korpus>
+      <finish>без отделки</finish>
+      <ready>2027-06-30</ready>
+      <link>https://stroygrad.example.ru/lots/A-102</link>
+      <subway>Гагаринская</subway>
+      <subway_minutes>7</subway_minutes>
+    </lot>
+    <lot id="B-330">
+      <complex>ЖК «Гагаринский»</complex>
+      <builder>СтройГрад</builder>
+      <cost>14,9 млн</cost>
+      <square>63,0</square>
+      <room_count>3</room_count>
+      <level>11</level>
+      <levels>14</levels>
+      <korpus>Корпус Б</korpus>
+      <finish>чистовая</finish>
+      <ready>2028-12-31</ready>
+      <link>https://stroygrad.example.ru/lots/B-330</link>
+      <subway>Гагаринская</subway>
+      <subway_minutes>9</subway_minutes>
+    </lot>
+  </lots>
+</export>

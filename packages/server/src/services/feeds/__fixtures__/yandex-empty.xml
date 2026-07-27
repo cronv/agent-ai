@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Исправная, но пустая выгрузка: у застройщика раскуплено всё. -->
+<realty-feed xmlns="http://webmaster.yandex.ru/schemas/feed/realty/2010-06">
+  <generation-date>2026-07-22T09:15:00+03:00</generation-date>
+</realty-feed>

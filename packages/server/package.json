@@ -21,6 +21,7 @@
     "@fastify/static": "^10.1.2",
     "@prisma/client": "^6.16.2",
     "dotenv": "^17.2.1",
+    "fast-xml-parser": "^5.10.1",
     "fastify": "^5.4.0",
     "fastify-plugin": "^5.0.1",
     "prisma": "^6.16.2"
