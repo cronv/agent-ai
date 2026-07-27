@@ -12,14 +12,20 @@ import type { ApartmentCard, ChatStreamEvent, HistoryMessage, SavedLead, WidgetC
  * Расшифровка кодов живёт здесь и только здесь.
  */
 
+/** Поле формы контакта, к которому относится отказ сервера. */
+export type LeadField = 'name' | 'phone' | 'consent' | 'session'
+
 /** Ошибка, текст которой можно показывать в ленте чата как есть. */
 export class ChatApiError extends Error {
   readonly retriable: boolean
+  /** Заполнено, когда отказ относится к конкретному полю формы контакта. */
+  readonly field: LeadField | null
 
-  constructor(message: string, retriable = true) {
+  constructor(message: string, retriable = true, field: LeadField | null = null) {
     super(message)
     this.name = 'ChatApiError'
     this.retriable = retriable
+    this.field = field
   }
 }
 
@@ -41,10 +47,25 @@ export interface SendPayload {
   signal?: AbortSignal
 }
 
+/** Тело `POST /api/lead` — контакт из формы в ленте чата. */
+export interface LeadPayload {
+  sessionId: string
+  name: string
+  /** Уже в виде `+79123456789`. */
+  phone: string
+  comment?: string | null
+  /** Галочка согласия. Без неё сервер отказывает — 152-ФЗ. */
+  consent: boolean
+  page: string | null
+  referrer: string | null
+  utm: Record<string, string> | null
+}
+
 export interface ChatApi {
   loadConfig(): Promise<WidgetConfig>
   loadHistory(sessionId: string): Promise<HistoryMessage[]>
   streamMessage(payload: SendPayload): AsyncGenerator<ChatStreamEvent>
+  saveLead(payload: LeadPayload): Promise<SavedLead>
 }
 
 export function createApi(baseUrl: string): ChatApi {
@@ -111,6 +132,29 @@ export function createApi(baseUrl: string): ChatApi {
       } finally {
         // Обрыв на нашей стороне закрывает и поток к модели на сервере.
         await reader.cancel().catch(() => undefined)
+      }
+    },
+
+    /**
+     * Контакт из формы. Маршрут публичный и живёт вне `/api/admin`: куки здесь
+     * не нужны и не отправляются — виджет стоит на чужом домене.
+     *
+     * Повторная отправка в той же сессии обновляет тот же лид, дубля не будет.
+     */
+    async saveLead(payload: LeadPayload): Promise<SavedLead> {
+      const response = await request(url('/api/lead'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const body = (await response.json()) as { lead?: unknown }
+      const lead = isRecord(body.lead) ? body.lead : {}
+      return {
+        id: typeof lead['id'] === 'string' ? lead['id'] : '',
+        name: typeof lead['name'] === 'string' ? lead['name'] : payload.name,
+        phone: typeof lead['phone'] === 'string' ? lead['phone'] : payload.phone,
+        phoneFormatted: typeof lead['phoneFormatted'] === 'string' ? lead['phoneFormatted'] : null,
+        comment: typeof lead['comment'] === 'string' ? lead['comment'] : null,
       }
     },
   }
@@ -195,6 +239,14 @@ async function request(target: string, init?: RequestInit): Promise<Response> {
   throw await toHumanError(response)
 }
 
+/** Коды `POST /api/lead` → поле формы, под которым показать текст сервера. */
+const LEAD_FIELDS: Record<string, LeadField | undefined> = {
+  consent_required: 'consent',
+  bad_name: 'name',
+  bad_phone: 'phone',
+  unknown_session: 'session',
+}
+
 async function toHumanError(response: Response): Promise<ChatApiError> {
   const body = await response
     .json()
@@ -203,6 +255,15 @@ async function toHumanError(response: Response): Promise<ChatApiError> {
 
   const code = typeof body['error'] === 'string' ? body['error'] : ''
   const retryAfter = typeof body['retryAfter'] === 'number' ? body['retryAfter'] : 0
+
+  // Отказ формы контакта — единственный случай, когда текст сервера написан
+  // для посетителя («поставьте галочку», «формат: +7 (912) 345-67-89») и
+  // переписывать его здесь нечем: он точнее любого общего.
+  const field = LEAD_FIELDS[code]
+  if (field) {
+    const message = typeof body['message'] === 'string' && body['message'].trim() !== '' ? body['message'] : ''
+    return new ChatApiError(message || 'Проверьте, пожалуйста, поля формы.', true, field)
+  }
 
   switch (code) {
     case 'rate_limited':

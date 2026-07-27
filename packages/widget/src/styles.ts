@@ -481,9 +481,173 @@ export const styles = `
 }
 .viewer__close:hover { background: #fff; }
 
+/* ── Форма контакта ───────────────────────────────────────── */
+
+.lead {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border: 1px solid rgba(var(--accent-rgb), .28);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 12px 30px -22px rgba(var(--accent-rgb), .9);
+  animation: fade-up .3s var(--ease) both;
+}
+.lead__head { display: flex; align-items: center; gap: 8px; }
+.lead__title { flex: 1; font-size: 15.5px; font-weight: 600; letter-spacing: -0.015em; }
+.lead__hide {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  margin: -4px -4px -4px 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.lead__hide:hover { background: var(--surface-2); color: var(--ink); }
+.lead__hint { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: var(--ink-2); }
+
+.lead__field { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
+.lead__label { font-size: 12.5px; color: var(--ink-3); }
+.lead__input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+  /* 16px намеренно: на меньшем iOS зумит страницу при фокусе. */
+  font-size: 16px;
+  font-family: inherit;
+  line-height: 1.4;
+  color: var(--ink);
+  outline: none;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.lead__input::placeholder { color: #A6ADB9; }
+.lead__input:focus {
+  background: var(--surface);
+  border-color: rgba(var(--accent-rgb), .55);
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), .1);
+}
+.lead__input--bad { border-color: #E2B5A2; background: #FFF8F5; }
+.lead__error { font-size: 12.5px; line-height: 1.4; color: #A8452A; }
+.lead__error--wide { margin-top: 6px; }
+
+.lead__consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 14px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.lead__check {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin: 1px 0 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.lead__consent a { color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; }
+
+.lead__fail {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #F3DED4;
+  border-radius: 13px;
+  background: #FFF8F5;
+  color: #8A3A22;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.lead__submit {
+  height: 46px;
+  margin-top: 14px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .18s var(--ease), background .18s ease, box-shadow .18s ease;
+}
+.lead__submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 24px -14px rgba(var(--accent-rgb), .9); }
+.lead__submit:disabled { background: #EDEFF3; color: #A9AFBB; cursor: default; }
+
+.lead-done {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 14px 16px;
+  border: 1px solid rgba(var(--accent-rgb), .22);
+  border-radius: 20px;
+  background: rgba(var(--accent-rgb), .06);
+  animation: fade-up .3s var(--ease) both;
+}
+.lead-done__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.lead-done__text { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-2); }
+.lead-done__text b { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+.lead-done__edit {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-deep);
+  font-size: 13px;
+  font-weight: 550;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
 /* ── Поле ввода ───────────────────────────────────────────── */
 
 .foot { padding: 12px 16px 14px; border-top: 1px solid var(--line); background: var(--surface); }
+
+.foot__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 9px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, color .18s ease;
+}
+.foot__cta:hover {
+  border-color: rgba(var(--accent-rgb), .5);
+  background: rgba(var(--accent-rgb), .05);
+  color: var(--accent-deep);
+}
+
 .composer {
   display: flex;
   align-items: flex-end;

@@ -40,11 +40,13 @@ export interface WidgetConfig {
   privacyPolicyUrl: string | null
 }
 
-/** Контакт, сохранённый ассистентом (событие `lead`). */
+/** Контакт, сохранённый ассистентом (событие `lead`) или формой в ленте. */
 export interface SavedLead {
   id: string
   name: string
   phone: string
+  /** `+7 (912) 345-67-89` — так номер показывают в подтверждении. Есть только у ответа формы. */
+  phoneFormatted?: string | null
   comment: string | null
 }
 

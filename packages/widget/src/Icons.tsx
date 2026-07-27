@@ -77,6 +77,17 @@ export function LinkIcon({ size = 16 }: IconProps) {
   )
 }
 
+export function PhoneIcon({ size = 16 }: IconProps) {
+  return svg(
+    size,
+    <path d="M8.4 4.5 6.2 4a1.6 1.6 0 0 0-1.8.9l-.6 1.4a1.6 1.6 0 0 0-.1.9c.4 2.5 1.6 4.9 3.4 6.7 1.8 1.8 4.2 3 6.7 3.4.3 0 .6 0 .9-.1l1.4-.6a1.6 1.6 0 0 0 .9-1.8l-.5-2.2a1.6 1.6 0 0 0-1.3-1.2l-1.8-.3-1.2 1.6a10.4 10.4 0 0 1-3.6-3.6L9.9 7.6l-.3-1.8a1.6 1.6 0 0 0-1.2-1.3Z" />,
+  )
+}
+
+export function CheckIcon({ size = 18 }: IconProps) {
+  return svg(size, <path d="m5 12.5 4.5 4.5L19 7" />)
+}
+
 /** Заглушка на месте планировки: чертёж, которого нет. */
 export function PlanPlaceholderIcon({ size = 44 }: IconProps) {
   return svg(

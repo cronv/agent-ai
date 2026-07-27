@@ -14,7 +14,14 @@ import type { Connect, Plugin } from 'vite'
  * Слова-переключатели для демонстрации:
  *   «ошибка»  — сбой модели: событие error и кнопка «Повторить»;
  *   «молчок»  — обрыв соединения без `done`;
- *   «ипотек»  — ответ из базы знаний, без карточек.
+ *   «ипотек»  — ответ из базы знаний, без карточек;
+ *   «контакт» — ассистент просит контакт: событие `tool` с `save_lead`,
+ *               по нему виджет открывает форму прямо в ленте.
+ *
+ * `POST /api/lead` отвечает так же, как настоящий: 201 с лидом, 400 с кодом,
+ * полем и готовым русским текстом. Повторная отправка в той же сессии
+ * возвращает тот же `lead.id` — дубля не появляется. Имя «сбой» в форме
+ * ломает ответ намеренно: так проверяется, что введённое не теряется.
  */
 
 interface DemoApartment {
@@ -161,6 +168,18 @@ interface StoredMessage {
 
 const history = new Map<string, StoredMessage[]>()
 
+interface StoredLead {
+  id: string
+  name: string
+  phone: string
+  phoneFormatted: string
+  comment: string | null
+  createdAt: string
+}
+
+/** Лид на сессию: второй раз обновляется тот же, как в настоящей базе. */
+const leads = new Map<string, StoredLead>()
+
 export function mockApi(): Plugin {
   return {
     name: 'novostroyki-demo-api',
@@ -193,6 +212,11 @@ export function mockApi(): Plugin {
 
         if (request.method === 'POST' && url.startsWith('/chat')) {
           await streamAnswer(request, response)
+          return
+        }
+
+        if (request.method === 'POST' && url.startsWith('/lead')) {
+          await saveLead(request, response)
           return
         }
 
@@ -238,6 +262,29 @@ async function streamAnswer(request: Connect.IncomingMessage, response: import('
     return
   }
 
+  // Ассистент просит контакт: инструмент `save_lead` — сигнал виджету открыть
+  // форму, чтобы телефон не диктовали в поле сообщения.
+  if (message.includes('контакт') || message.includes('звон') || message.includes('посмотреть')) {
+    await wait(500)
+    send('tool', { name: 'save_lead', input: {} })
+    await wait(800)
+
+    const asking = [
+      'Отлично, покажу квартиру вживую. ',
+      'Оставьте имя и телефон в форме ниже — менеджер перезвонит, ',
+      'согласует время и подготовит документы по выбранному ЖК.',
+    ]
+    for (const chunk of asking) {
+      await wait(160)
+      send('text', { text: chunk })
+    }
+
+    remember(sessionId, { role: 'assistant', content: asking.join(''), apartments: [] })
+    send('done', { reply: { failed: false, messageId: `m-${Date.now()}` } })
+    response.end()
+    return
+  }
+
   const knowledge = message.includes('ипотек') || message.includes('рассроч')
   const reply = knowledge
     ? [
@@ -280,13 +327,88 @@ async function streamAnswer(request: Connect.IncomingMessage, response: import('
   response.end()
 }
 
+/**
+ * `POST /api/lead` — проверки и тексты те же, что на сервере
+ * (`services/leads/leads.service.ts` и `phone.ts`): виджет показывает `message`
+ * как есть, и подменять его в демо на другой смысла нет.
+ */
+async function saveLead(request: Connect.IncomingMessage, response: import('node:http').ServerResponse) {
+  const body = (await readJson(request)) as {
+    sessionId?: string
+    name?: string
+    phone?: string
+    comment?: string | null
+    consent?: boolean
+  }
+
+  // Задержка, чтобы было видно «Отправляем…» и заблокированную кнопку.
+  await new Promise((resolve) => setTimeout(resolve, 600))
+
+  const name = (body.name ?? '').trim()
+
+  if (name.toLowerCase() === 'сбой') {
+    json(response, { error: 'internal_error' }, 500)
+    return
+  }
+
+  if (body.consent !== true) {
+    json(
+      response,
+      {
+        error: 'consent_required',
+        field: 'consent',
+        message: 'Без согласия на обработку персональных данных мы не можем сохранить контакт — поставьте галочку.',
+      },
+      400,
+    )
+    return
+  }
+
+  if (name.length < 2) {
+    json(
+      response,
+      { error: 'bad_name', field: 'name', message: 'Как к вам обращаться? Имя нужно из двух букв и длиннее.' },
+      400,
+    )
+    return
+  }
+
+  let digits = (body.phone ?? '').replace(/\D/gu, '')
+  if (digits.length === 11 && (digits.startsWith('8') || digits.startsWith('7'))) digits = digits.slice(1)
+  if (digits.length !== 10) {
+    json(
+      response,
+      { error: 'bad_phone', field: 'phone', message: 'Телефон не похож на номер. Формат: +7 (912) 345-67-89.' },
+      400,
+    )
+    return
+  }
+
+  const sessionId = body.sessionId ?? 'demo'
+  const existing = leads.get(sessionId)
+  const lead: StoredLead = {
+    id: existing?.id ?? `lead-${Date.now()}`,
+    name,
+    phone: `+7${digits}`,
+    phoneFormatted: `+7 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 8)}-${digits.slice(8, 10)}`,
+    comment: typeof body.comment === 'string' && body.comment.trim() !== '' ? body.comment.trim() : null,
+    createdAt: existing?.createdAt ?? new Date().toISOString(),
+  }
+  leads.set(sessionId, lead)
+
+  // eslint-disable-next-line no-console
+  console.log(`[demo] лид ${existing ? 'обновлён' : 'сохранён'}: ${lead.name}, ${lead.phoneFormatted}`)
+  json(response, { lead }, 201)
+}
+
 function remember(sessionId: string, message: Omit<StoredMessage, 'id' | 'createdAt'>): void {
   const list = history.get(sessionId) ?? []
   list.push({ ...message, id: `h-${list.length}`, createdAt: new Date().toISOString() })
   history.set(sessionId, list)
 }
 
-function json(response: import('node:http').ServerResponse, payload: unknown): void {
+function json(response: import('node:http').ServerResponse, payload: unknown, status = 200): void {
+  response.statusCode = status
   response.setHeader('content-type', 'application/json; charset=utf-8')
   response.end(JSON.stringify(payload))
 }

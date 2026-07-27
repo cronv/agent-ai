@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 
 import { PlanViewer } from './Apartments.tsx'
 import { Composer } from './Composer.tsx'
-import { ChatIcon, CloseIcon } from './Icons.tsx'
+import { ContactDone, ContactForm } from './ContactForm.tsx'
+import { ChatIcon, CloseIcon, PhoneIcon } from './Icons.tsx'
 import { Messages } from './Messages.tsx'
 import { DEFAULT_CONFIG, createApi } from './api.ts'
-import { getSessionId } from './session.ts'
+import { getSessionId, hasSavedLead, markLeadSaved } from './session.ts'
 import { buildAccentTheme } from './theme.ts'
-import type { ApartmentCard, WidgetConfig } from './types.ts'
+import type { ApartmentCard, SavedLead, WidgetConfig } from './types.ts'
 import { useChat } from './useChat.ts'
 import { useIsMobile, useScrollLock, useVisualViewport } from './useViewport.ts'
 
@@ -21,6 +22,9 @@ import { useIsMobile, useScrollLock, useVisualViewport } from './useViewport.ts'
 
 const CLOSE_ANIMATION_MS = 160
 
+/** Что стоит в ленте на месте формы контакта. */
+type ContactStage = 'hidden' | 'form' | 'done'
+
 export function App({ apiBase }: { apiBase: string }) {
   const api = useMemo(() => createApi(apiBase), [apiBase])
   const sessionId = useMemo(getSessionId, [])
@@ -30,6 +34,8 @@ export function App({ apiBase }: { apiBase: string }) {
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
   const [plan, setPlan] = useState<ApartmentCard | null>(null)
+  const [contact, setContact] = useState<ContactStage>('hidden')
+  const [lead, setLead] = useState<SavedLead | null>(null)
 
   const mobile = useIsMobile()
   const viewport = useVisualViewport(open && mobile)
@@ -97,7 +103,7 @@ export function App({ apiBase }: { apiBase: string }) {
     const node = scroller.current
     if (!node || !pinned.current) return
     node.scrollTop = node.scrollHeight
-  }, [chat.items, chat.draft?.text, chat.draft?.apartments.length, chat.phase, chat.error, open])
+  }, [chat.items, chat.draft?.text, chat.draft?.apartments.length, chat.phase, chat.error, contact, open])
 
   const onScroll = (): void => {
     const node = scroller.current
@@ -105,8 +111,46 @@ export function App({ apiBase }: { apiBase: string }) {
     pinned.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80
   }
 
+  // ── Контакт ────────────────────────────────────────────────
+
+  /**
+   * Форму открывает либо ассистент — вызовом `save_lead` он просит контакт
+   * словами, и диктовать телефон в поле сообщения человеку не приходится, —
+   * либо сам посетитель кнопкой в любой момент разговора.
+   *
+   * Сама по себе форма открывается один раз за сессию: тому, кто телефон уже
+   * дал, она больше в лицо не лезет, даже после перезагрузки страницы.
+   */
+  useEffect(() => {
+    if (chat.contactAsked === 0 || hasSavedLead()) return
+    pinned.current = true
+    setContact('form')
+  }, [chat.contactAsked])
+
+  // Контакт записал сам ассистент со слов посетителя — спрашивать нечего.
+  useEffect(() => {
+    if (!chat.lead) return
+    markLeadSaved()
+    setLead(chat.lead)
+    setContact('done')
+  }, [chat.lead])
+
+  const askContact = useCallback((): void => {
+    pinned.current = true
+    setContact('form')
+  }, [])
+
+  const onLeadSaved = useCallback((saved: SavedLead): void => {
+    markLeadSaved()
+    setLead(saved)
+    setContact('done')
+  }, [])
+
   const send = (text: string): void => {
     pinned.current = true
+    // Подтверждение своё дело сделало: дальше оно висело бы хвостом под каждым
+    // новым ответом и выглядело как просьба оставить контакт ещё раз.
+    if (contact === 'done') setContact('hidden')
     chat.send(text)
   }
 
@@ -157,11 +201,29 @@ export function App({ apiBase }: { apiBase: string }) {
               onExample={send}
               onRetry={chat.retry}
               onOpenPlan={setPlan}
-              /* Тикет 09: сюда передаётся <ContactForm />. */
+              contactSlot={
+                contact === 'form' ? (
+                  <ContactForm
+                    api={api}
+                    sessionId={sessionId}
+                    privacyPolicyUrl={config.privacyPolicyUrl}
+                    onSaved={onLeadSaved}
+                    onClose={() => setContact('hidden')}
+                  />
+                ) : contact === 'done' ? (
+                  <ContactDone lead={lead} onEdit={askContact} />
+                ) : null
+              }
             />
           </div>
 
           <footer class="foot">
+            {contact === 'hidden' ? (
+              <button type="button" class="foot__cta" onClick={askContact}>
+                <PhoneIcon size={15} />
+                Оставить контакт
+              </button>
+            ) : null}
             <Composer disabled={chat.busy} autoFocus={open} onSend={send} />
             <p class="foot__note">
               Отвечает ИИ-ассистент — детали уточняйте у менеджера.

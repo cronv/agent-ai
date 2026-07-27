@@ -11,8 +11,10 @@
  */
 
 const STORAGE_KEY = 'novostroyki-ai:session'
+const LEAD_KEY = 'novostroyki-ai:lead'
 
 let memorySession: string | null = null
+let memoryLead = false
 
 export function getSessionId(): string {
   const stored = readStorage()
@@ -49,6 +51,33 @@ function createSessionId(): string {
   const random = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
   // Даже если getRandomValues не сработал, длина укладывается в требования сервера.
   return `s${Date.now().toString(36)}${random}`.slice(0, 64)
+}
+
+// ── Контакт уже оставлен ─────────────────────────────────────
+
+/**
+ * Пометка «в этой сессии контакт уже оставлен».
+ *
+ * Нужна ровно для одного: форма больше не открывается сама. Ассистент может
+ * попросить контакт снова — и после перезагрузки страницы тоже, — но человеку,
+ * который телефон уже дал, форма в лицо второй раз не лезет. Открыть её
+ * кнопкой он по-прежнему может: уточнить номер никто не запрещает.
+ */
+export function hasSavedLead(): boolean {
+  try {
+    return window.localStorage.getItem(LEAD_KEY) === getSessionId()
+  } catch {
+    return memoryLead
+  }
+}
+
+export function markLeadSaved(): void {
+  memoryLead = true
+  try {
+    window.localStorage.setItem(LEAD_KEY, getSessionId())
+  } catch {
+    // Хранилище закрыто — пометка живёт до перезагрузки вкладки.
+  }
 }
 
 // ── Контекст страницы ────────────────────────────────────────

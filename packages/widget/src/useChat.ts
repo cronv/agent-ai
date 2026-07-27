@@ -22,12 +22,13 @@ import type { ApartmentCard, ChatError, FeedItem, SavedLead } from './types.ts'
  * незаконченный ответ отличим от законченного: если соединение оборвалось,
  * `done` не придёт вовсе, и написанное сохранится с пометкой «оборвалось».
  *
- * ── Точка для тикета 09 ─────────────────────────────────────────────────────
+ * ── Про форму контакта ──────────────────────────────────────────────────────
  *
- * Форма контакта — это блок в ленте, а не отдельный экран. Наружу отсюда уже
- * отдаются `lead` (контакт сохранён ассистентом) и `sessionId`; форме нужно
- * будет добавить сюда состояние «форму показать / форма отправлена» и
- * отрисовать её в `Messages.tsx` в отведённом месте.
+ * Здесь только повод её показать, а не она сама. Ассистент просит контакт,
+ * вызывая `save_lead`, — счётчик `contactAsked` растёт на каждый такой вызов.
+ * Показывать форму или нет, решает `App`: он же знает, оставил ли человек
+ * контакт раньше. `lead` — контакт, который ассистент записал сам со слов
+ * посетителя; тогда форма сразу показывает подтверждение, а не поля.
  */
 
 export type ChatPhase = 'idle' | 'waiting' | 'streaming'
@@ -45,6 +46,8 @@ interface ChatState {
   phase: ChatPhase
   error: ChatError | null
   lead: SavedLead | null
+  /** Сколько раз ассистент просил контакт: каждый вызов `save_lead` — повод показать форму. */
+  contactAsked: number
   historyLoaded: boolean
 }
 
@@ -53,7 +56,7 @@ type Action =
   | { type: 'ask'; id: string; text: string }
   | { type: 'restart' }
   | { type: 'text'; text: string }
-  | { type: 'tool'; label: string }
+  | { type: 'tool'; label: string; contact: boolean }
   | { type: 'apartments'; apartments: ApartmentCard[] }
   | { type: 'lead'; lead: SavedLead }
   | { type: 'server-error'; message: string }
@@ -67,6 +70,7 @@ const INITIAL: ChatState = {
   phase: 'idle',
   error: null,
   lead: null,
+  contactAsked: 0,
   historyLoaded: false,
 }
 
@@ -107,7 +111,11 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
       }
 
     case 'tool':
-      return { ...state, tool: action.label }
+      return {
+        ...state,
+        tool: action.label,
+        contactAsked: action.contact ? state.contactAsked + 1 : state.contactAsked,
+      }
 
     case 'apartments':
       return {
@@ -186,8 +194,10 @@ export interface Chat {
   tool: string | null
   phase: ChatPhase
   error: ChatError | null
-  /** Контакт, сохранённый ассистентом. Пригодится форме из тикета 09. */
+  /** Контакт, сохранённый ассистентом со слов посетителя. */
   lead: SavedLead | null
+  /** Растёт каждый раз, когда ассистент просит контакт: повод показать форму. */
+  contactAsked: number
   busy: boolean
   send: (text: string) => void
   retry: () => void
@@ -233,7 +243,7 @@ export function useChat({ api, sessionId }: UseChatOptions): Chat {
               dispatch({ type: 'text', text: event.text })
               break
             case 'tool':
-              dispatch({ type: 'tool', label: toolLabel(event.name) })
+              dispatch({ type: 'tool', label: toolLabel(event.name), contact: event.name === 'save_lead' })
               break
             case 'apartments':
               dispatch({ type: 'apartments', apartments: event.apartments })
@@ -325,6 +335,7 @@ export function useChat({ api, sessionId }: UseChatOptions): Chat {
     phase: state.phase,
     error: state.error,
     lead: state.lead,
+    contactAsked: state.contactAsked,
     busy: state.phase !== 'idle',
     send,
     retry,
