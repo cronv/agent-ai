@@ -3,6 +3,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import authRoutes from './auth.routes.js'
 import dashboardRoutes from './dashboard.routes.js'
 import feedsRoutes from './feeds.routes.js'
+import knowledgeRoutes from './knowledge.routes.js'
 
 /**
  * Все маршруты админки в одном месте.
@@ -17,6 +18,7 @@ const adminRoutes: FastifyPluginAsync = async (app) => {
   await app.register(authRoutes)
   await app.register(dashboardRoutes)
   await app.register(feedsRoutes)
+  await app.register(knowledgeRoutes)
 }
 
 export default adminRoutes
