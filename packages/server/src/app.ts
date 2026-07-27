@@ -5,12 +5,14 @@ import type { Db } from './db/prisma.js'
 import authPlugin from './plugins/auth.js'
 import contextPlugin from './plugins/context.js'
 import feedSchedulerPlugin from './plugins/feed-scheduler.js'
+import leadsPlugin, { type LeadsPluginOptions } from './plugins/leads.js'
 import staticAssets from './plugins/static-assets.js'
 import adminRoutes from './routes/admin/index.js'
 import chatRoutes from './routes/chat.routes.js'
 import healthRoutes from './routes/health.js'
+import leadRoutes from './routes/lead.routes.js'
 import rootRoutes from './routes/root.js'
-import type { ModelClient } from './services/dialog/index.js'
+import type { LeadHandler, ModelClient } from './services/dialog/index.js'
 import type { SettingsService } from './services/settings/index.js'
 
 /**
@@ -36,6 +38,8 @@ export interface BuildAppOptions {
   fastify?: FastifyServerOptions
   /** Клиент модели для чата. В тестах сюда подставляется мок вместо Anthropic. */
   modelClient?: ModelClient
+  /** Настройки сервиса лидов: в тестах сюда подставляется мок вебхука. */
+  leads?: LeadsPluginOptions
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -59,15 +63,25 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   if (options.scheduler !== undefined) schedulerOptions.enabled = options.scheduler
   await app.register(feedSchedulerPlugin, schedulerOptions)
 
+  // До маршрутов: `app.leads` нужен и публичной форме, и админке, и движку
+  // диалога — инструмент `save_lead` ходит в тот же сервис, что и HTTP.
+  await app.register(leadsPlugin, options.leads ?? {})
+
   await app.register(rootRoutes)
   await app.register(healthRoutes)
   await app.register(adminRoutes)
 
   // Публичное API виджета: живёт вне /api/admin, свои CORS-заголовки
   // и свои ограничения частоты — см. routes/chat.routes.ts.
-  const chatOptions: { modelClient?: ModelClient } = {}
+  const chatOptions: { modelClient?: ModelClient; saveLead?: LeadHandler } = {}
   if (options.modelClient) chatOptions.modelClient = options.modelClient
+  // Контакт, сохранённый инструментом модели, проходит те же нормализацию,
+  // поиск дубля и вебхук, что и контакт из формы.
+  chatOptions.saveLead = app.leads.captureFromDialog
   await app.register(chatRoutes, chatOptions)
+
+  // Форма контакта в виджете. Публичный маршрут, вне /api/admin.
+  await app.register(leadRoutes)
 
   if (options.serveStatic !== false) {
     await app.register(staticAssets)

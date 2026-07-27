@@ -58,6 +58,16 @@ enum LeadStatus {
   rejected
 }
 
+/// Итог отправки лида во внешний вебхук
+enum LeadWebhookStatus {
+  /// Адрес вебхука не задан — отправлять некуда
+  skipped
+  /// Вебхук ответил успехом
+  sent
+  /// Все попытки провалились; текст ошибки — в `webhook_error`
+  failed
+}
+
 // ─────────────────────────────────────────────────────────────
 //  Объекты недвижимости
 // ─────────────────────────────────────────────────────────────
@@ -265,6 +275,17 @@ model Lead {
   status         LeadStatus @default(new)
   /// Момент, когда посетитель отметил согласие на обработку данных
   consentAt      DateTime?  @map("consent_at")
+  /// Квартиры, показанные в диалоге к моменту оставления контакта —
+  /// те же карточки, что и в `messages.apartments`. Менеджер видит,
+  /// что человек смотрел, не открывая переписку.
+  apartments     Json?
+  /// Итог отправки во внешний вебхук. `failed` вместе с `webhookError`
+  /// показывается в карточке лида в админке.
+  webhookStatus  LeadWebhookStatus @default(skipped) @map("webhook_status")
+  /// Текст последней ошибки отправки
+  webhookError   String?           @map("webhook_error")
+  /// Момент последней попытки отправки
+  webhookAt      DateTime?         @map("webhook_at")
   createdAt      DateTime   @default(now()) @map("created_at")
   updatedAt      DateTime   @updatedAt @map("updated_at")
 
