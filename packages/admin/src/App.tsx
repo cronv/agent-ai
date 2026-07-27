@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider.js'
 import { RequireAuth } from './auth/RequireAuth.js'
 import { AdminLayout } from './layout/AdminLayout.js'
+import { ConversationPage } from './pages/ConversationPage.js'
 import { ConversationsPage } from './pages/ConversationsPage.js'
 import { DashboardPage } from './pages/DashboardPage.js'
 import { FeedsPage } from './pages/FeedsPage.js'
@@ -40,6 +41,7 @@ export function App(): ReactElement {
               <Route path="feeds" element={<FeedsPage />} />
               <Route path="knowledge" element={<KnowledgePage />} />
               <Route path="conversations" element={<ConversationsPage />} />
+              <Route path="conversations/:id" element={<ConversationPage />} />
               <Route path="leads" element={<LeadsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="*" element={<NotFoundPage />} />
