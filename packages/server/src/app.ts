@@ -4,6 +4,7 @@ import { env } from './config/env.js'
 import type { Db } from './db/prisma.js'
 import authPlugin from './plugins/auth.js'
 import contextPlugin from './plugins/context.js'
+import feedSchedulerPlugin from './plugins/feed-scheduler.js'
 import staticAssets from './plugins/static-assets.js'
 import adminRoutes from './routes/admin/index.js'
 import healthRoutes from './routes/health.js'
@@ -27,6 +28,8 @@ export interface BuildAppOptions {
   settings?: SettingsService
   /** Раздавать ли собранные админку и виджет. В тестах обычно не нужно. */
   serveStatic?: boolean
+  /** Поднимать ли задачи обновления фидов. По умолчанию — везде, кроме тестов. */
+  scheduler?: boolean
   /** Дополнительные опции Fastify (например, свой логгер). */
   fastify?: FastifyServerOptions
 }
@@ -47,6 +50,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // Регистрируется до маршрутов: плагин вешает общий хук, который закрывает
   // всё под /api/admin/ — он должен успеть до того, как появятся маршруты.
   await app.register(authPlugin)
+
+  const schedulerOptions: { enabled?: boolean } = {}
+  if (options.scheduler !== undefined) schedulerOptions.enabled = options.scheduler
+  await app.register(feedSchedulerPlugin, schedulerOptions)
 
   await app.register(rootRoutes)
   await app.register(healthRoutes)
