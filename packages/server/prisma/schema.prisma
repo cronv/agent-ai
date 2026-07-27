@@ -1,0 +1,292 @@
+// Схема данных проекта «AI-ассистент по новостройкам».
+// Соответствует разделу «Схема данных» в docs/SPEC.md.
+//
+// Соглашения:
+//  - таблицы и колонки в базе — snake_case (@map / @@map), в коде — camelCase;
+//  - идентификаторы — cuid-строки;
+//  - деньги и площади хранятся как Float: это обычные числа JavaScript,
+//    их не нужно конвертировать перед отправкой в JSON.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Расширения pg_trgm и unaccent, конфигурация поиска russian_unaccent,
+// колонка tsvector и триггер к ней создаются сырым SQL — см. миграцию
+// prisma/migrations/*_init/migration.sql.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Перечисления
+// ─────────────────────────────────────────────────────────────
+
+/// Формат выгрузки застройщика
+enum FeedFormat {
+  yandex
+  cian
+  custom
+}
+
+/// Итог последней синхронизации фида
+enum FeedRunStatus {
+  ok
+  error
+  running
+}
+
+/// Состояние обработки документа базы знаний
+enum KnowledgeDocStatus {
+  pending
+  ready
+  error
+}
+
+/// Кто написал сообщение
+enum MessageRole {
+  user
+  assistant
+}
+
+/// Стадия работы с лидом
+enum LeadStatus {
+  new
+  in_progress
+  reached
+  rejected
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Объекты недвижимости
+// ─────────────────────────────────────────────────────────────
+
+/// Жилой комплекс
+model Project {
+  id               String    @id @default(cuid())
+  name             String
+  slug             String    @unique
+  developer        String?
+  district         String?
+  metro            String?
+  metroDistanceMin Int?      @map("metro_distance_min")
+  address          String?
+  deadline         DateTime? @db.Date
+  finishing        String?
+  description      String?
+  url              String?
+  imageUrl         String?   @map("image_url")
+  isActive         Boolean   @default(true) @map("is_active")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  apartments      Apartment[]
+  knowledgeDocs   KnowledgeDoc[]
+  knowledgeChunks KnowledgeChunk[]
+
+  @@index([isActive])
+  @@index([district])
+  @@index([metro])
+  @@map("projects")
+}
+
+/// Источник данных о квартирах — XML/YML-выгрузка застройщика
+model Feed {
+  id           String         @id @default(cuid())
+  name         String
+  url          String
+  format       FeedFormat     @default(yandex)
+  /// Для format = custom: соответствие «путь в XML → поле квартиры»
+  fieldMapping Json?          @map("field_mapping")
+  /// Индивидуальное расписание; если пусто — берётся общее из настроек
+  scheduleCron String?        @map("schedule_cron")
+  isActive     Boolean        @default(true) @map("is_active")
+  lastRunAt    DateTime?      @map("last_run_at")
+  lastStatus   FeedRunStatus? @map("last_status")
+  lastError    String?        @map("last_error")
+  lastCount    Int?           @map("last_count")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  apartments Apartment[]
+
+  @@index([isActive])
+  @@map("feeds")
+}
+
+/// Квартира (лот) из фида
+model Apartment {
+  id           String    @id @default(cuid())
+  feedId       String    @map("feed_id")
+  projectId    String?   @map("project_id")
+  /// Идентификатор лота в выгрузке застройщика
+  externalId   String    @map("external_id")
+  rooms        Int?
+  area         Float?
+  livingArea   Float?    @map("living_area")
+  kitchenArea  Float?    @map("kitchen_area")
+  floor        Int?
+  floorsTotal  Int?      @map("floors_total")
+  price        Float
+  pricePerM2   Float?    @map("price_per_m2")
+  building     String?
+  section      String?
+  finishing    String?
+  deadline     DateTime? @db.Date
+  planImageUrl String?   @map("plan_image_url")
+  url          String?
+  isActive     Boolean   @default(true) @map("is_active")
+  /// Исходный узел XML — на случай, если понадобится поле, которого нет в схеме
+  raw          Json?
+  syncedAt     DateTime  @default(now()) @map("synced_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  feed    Feed     @relation(fields: [feedId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([feedId, externalId])
+  @@index([projectId])
+  @@index([isActive])
+  @@index([price])
+  @@index([rooms])
+  @@index([area])
+  @@index([deadline])
+  @@map("apartments")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  База знаний
+// ─────────────────────────────────────────────────────────────
+
+/// Загруженный документ (презентация, условия ипотеки и т. п.)
+model KnowledgeDoc {
+  id        String             @id @default(cuid())
+  /// Если задан — документ относится только к этому ЖК
+  projectId String?            @map("project_id")
+  filename  String
+  mimeType  String             @map("mime_type")
+  sizeBytes Int                @map("size_bytes")
+  charCount Int                @default(0) @map("char_count")
+  status    KnowledgeDocStatus @default(pending)
+  error     String?
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  project Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  chunks  KnowledgeChunk[]
+
+  @@index([projectId])
+  @@index([status])
+  @@map("knowledge_docs")
+}
+
+/// Фрагмент документа, по которому идёт полнотекстовый поиск.
+///
+/// Колонка `tsv` — тип PostgreSQL `tsvector`, Prisma его не поддерживает
+/// нативно, поэтому объявлена как Unsupported и не читается через клиент.
+/// Заполняется триггером `knowledge_chunks_tsv_update` при вставке и
+/// обновлении: `to_tsvector('russian_unaccent', content)`.
+/// Поиск делается сырым SQL — см. lib/fulltext.ts.
+model KnowledgeChunk {
+  id        String                   @id @default(cuid())
+  docId     String                   @map("doc_id")
+  projectId String?                  @map("project_id")
+  content   String
+  position  Int
+  tsv       Unsupported("tsvector")?
+  createdAt DateTime                 @default(now()) @map("created_at")
+
+  doc     KnowledgeDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
+  project Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@unique([docId, position])
+  @@index([projectId])
+  @@map("knowledge_chunks")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Диалоги и лиды
+// ─────────────────────────────────────────────────────────────
+
+/// Переписка посетителя с ассистентом
+model Conversation {
+  id            String   @id @default(cuid())
+  /// Идентификатор, который виджет хранит в localStorage
+  sessionId     String   @unique @map("session_id")
+  pageUrl       String?  @map("page_url")
+  referrer      String?
+  /// UTM-метки страницы входа: { utm_source, utm_medium, ... }
+  utm           Json?
+  userAgent     String?  @map("user_agent")
+  startedAt     DateTime @default(now()) @map("started_at")
+  lastMessageAt DateTime @default(now()) @map("last_message_at")
+  messageCount  Int      @default(0) @map("message_count")
+  tokensIn      Int      @default(0) @map("tokens_in")
+  tokensOut     Int      @default(0) @map("tokens_out")
+
+  messages Message[]
+  leads    Lead[]
+
+  @@index([lastMessageAt])
+  @@index([startedAt])
+  @@map("conversations")
+}
+
+/// Одно сообщение в переписке
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String      @map("conversation_id")
+  role           MessageRole
+  content        String
+  /// Квартиры, показанные этим сообщением, — виджет рендерит карточки отсюда
+  apartments     Json?
+  /// Вызовы инструментов модели и их результаты
+  toolCalls      Json?       @map("tool_calls")
+  model          String?
+  tokensIn       Int?        @map("tokens_in")
+  tokensOut      Int?        @map("tokens_out")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+/// Оставленный контакт
+model Lead {
+  id             String     @id @default(cuid())
+  conversationId String?    @map("conversation_id")
+  name           String
+  phone          String
+  comment        String?
+  status         LeadStatus @default(new)
+  /// Момент, когда посетитель отметил согласие на обработку данных
+  consentAt      DateTime?  @map("consent_at")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([phone])
+  @@map("leads")
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Настройки
+// ─────────────────────────────────────────────────────────────
+
+/// Настройки приложения «ключ → значение».
+/// Читаются и пишутся только через SettingsService — он знает список
+/// допустимых ключей, их типы и значения по умолчанию.
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}

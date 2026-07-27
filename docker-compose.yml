@@ -1,0 +1,84 @@
+# Имя проекта задано явно: путь к каталогу содержит пробел и кириллицу,
+# автоматически сгенерировать имя Docker Compose не сможет.
+name: novostroyki-ai
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: novostroyki
+      POSTGRES_PASSWORD: novostroyki
+      POSTGRES_DB: novostroyki
+      # Русская локаль в БД не нужна: полнотекстовый поиск использует
+      # конфигурацию russian, она встроена в PostgreSQL независимо от локали.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novostroyki -d novostroyki"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+  # Отдельная база для автотестов. Не поднимается вместе с остальными:
+  # запускается только командой `npm run db:test:up` (профиль test).
+  # Данные держатся в памяти — тесты стартуют с чистого листа.
+  postgres-test:
+    profiles: ["test"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: novostroyki
+      POSTGRES_PASSWORD: novostroyki
+      POSTGRES_DB: novostroyki_test
+    ports:
+      - "${POSTGRES_TEST_PORT:-5434}:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U novostroyki -d novostroyki_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 3s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://novostroyki:novostroyki@postgres:5432/novostroyki?schema=public
+      PORT: "3000"
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-please}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-string}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  pgdata:

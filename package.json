@@ -1,0 +1,33 @@
+{
+  "name": "novostroyki-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-ассистент по новостройкам: виджет на сайт, подбор квартир из фидов, база знаний, админка",
+  "workspaces": [
+    "packages/server",
+    "packages/admin",
+    "packages/widget"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @novostroyki/server",
+    "dev:admin": "npm run dev -w @novostroyki/admin",
+    "dev:widget": "npm run dev -w @novostroyki/widget",
+    "build": "npm run build -w @novostroyki/widget && npm run build -w @novostroyki/admin && npm run build -w @novostroyki/server",
+    "build:server": "npm run build -w @novostroyki/server",
+    "build:admin": "npm run build -w @novostroyki/admin",
+    "build:widget": "npm run build -w @novostroyki/widget",
+    "start": "npm run start -w @novostroyki/server",
+    "test": "npm run test -w @novostroyki/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "prisma:generate": "npm run prisma:generate -w @novostroyki/server",
+    "migrate:dev": "npm run migrate:dev -w @novostroyki/server",
+    "migrate:deploy": "npm run migrate:deploy -w @novostroyki/server",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose stop postgres",
+    "db:test:up": "docker compose --profile test up -d --wait postgres-test",
+    "db:test:down": "docker compose --profile test rm -sf postgres-test"
+  }
+}
