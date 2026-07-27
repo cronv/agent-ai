@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300" role="img" aria-label="Планировка однокомнатной квартиры">
+  <style>
+    .wall { fill: none; stroke: #1B2028; stroke-width: 7; }
+    .part { fill: none; stroke: #1B2028; stroke-width: 4; }
+    .room { fill: #F3F5F8; }
+    .name { font: 500 11px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #2B313B; }
+    .area { font: 400 10px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #7A828F; }
+    .door { fill: none; stroke: #FFFFFF; stroke-width: 6; }
+  </style>
+  <rect x="40" y="24" width="320" height="252" class="room" />
+  <rect x="40" y="24" width="320" height="252" class="wall" />
+
+  <path class="part" d="M40 180 H210 M210 180 V276 M280 180 V276" />
+  <path class="door" d="M120 180 h34 M210 224 v30 M280 224 v30" />
+
+  <text class="name" x="62" y="72">Комната</text>
+  <text class="area" x="62" y="88">18,2 м²</text>
+
+  <text class="name" x="60" y="216">Кухня-гостиная</text>
+  <text class="area" x="60" y="232">11,0 м²</text>
+
+  <text class="name" x="228" y="216">С/у</text>
+  <text class="area" x="228" y="232">3,8 м²</text>
+
+  <text class="name" x="296" y="216">Холл</text>
+  <text class="area" x="296" y="232">5,9 м²</text>
+</svg>

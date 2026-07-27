@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300" role="img" aria-label="Планировка двухкомнатной квартиры">
+  <style>
+    .wall { fill: none; stroke: #1B2028; stroke-width: 7; }
+    .part { fill: none; stroke: #1B2028; stroke-width: 4; }
+    .room { fill: #F3F5F8; }
+    .name { font: 500 11px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #2B313B; }
+    .area { font: 400 10px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #7A828F; }
+    .door { fill: none; stroke: #FFFFFF; stroke-width: 6; }
+  </style>
+  <rect x="20" y="20" width="360" height="260" class="room" />
+  <rect x="20" y="20" width="360" height="260" class="wall" />
+
+  <path class="part" d="M200 20 V170 M200 170 H380 M20 190 H200 M120 190 V280" />
+  <path class="door" d="M200 96 v34 M262 170 h34 M96 190 h34 M120 236 v30" />
+
+  <text class="name" x="42" y="66">Гостиная</text>
+  <text class="area" x="42" y="82">18,4 м²</text>
+
+  <text class="name" x="222" y="66">Спальня</text>
+  <text class="area" x="222" y="82">13,2 м²</text>
+
+  <text class="name" x="222" y="212">Кухня</text>
+  <text class="area" x="222" y="228">12,4 м²</text>
+
+  <text class="name" x="38" y="222">Прихожая</text>
+  <text class="area" x="38" y="238">6,2 м²</text>
+
+  <text class="name" x="138" y="222">С/у</text>
+  <text class="area" x="138" y="238">4,1 м²</text>
+</svg>

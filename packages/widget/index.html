@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Столица Эстейт — новостройки Санкт-Петербурга</title>
+    <style>
+      /*
+        Это НЕ стили виджета. Это страница-хозяин: витрина агентства
+        недвижимости, на фоне которой виджет и должен выглядеть уместно.
+
+        Здесь нарочно сделано то, что ломает плохо изолированные виджеты:
+        засечный шрифт на всём документе, свой box-sizing, глобальные правила
+        для button и img. Виджет живёт в Shadow DOM, и до него это не доходит —
+        видно сразу: на странице засечки, в чате системный гротеск.
+      */
+      * { box-sizing: content-box; }
+      button { text-transform: uppercase; letter-spacing: 0.14em; font-family: inherit; }
+      img { border: 4px double #b9a284; }
+
+      :root {
+        --gold: #9c7a4b;
+        --ink: #17181c;
+        --muted: #6c6a66;
+        --paper: #fbfaf8;
+        --line: #e6e2db;
+      }
+
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", "PT Serif", serif;
+        font-size: 17px;
+        line-height: 1.65;
+        color: var(--ink);
+        background: var(--paper);
+      }
+      .wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+
+      header.top {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: rgba(251, 250, 248, 0.92);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid var(--line);
+      }
+      .top__row { display: flex; align-items: center; justify-content: space-between; height: 78px; }
+      .logo { font-size: 19px; letter-spacing: 0.22em; text-transform: uppercase; }
+      .logo b { font-weight: 700; }
+      nav.menu { display: flex; gap: 30px; font-size: 15px; letter-spacing: 0.04em; }
+      nav.menu a { color: var(--muted); text-decoration: none; }
+      nav.menu a:hover { color: var(--ink); }
+      .phone {
+        border: 1px solid var(--gold);
+        color: var(--gold);
+        background: transparent;
+        padding: 11px 20px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .hero { padding: 82px 0 70px; border-bottom: 1px solid var(--line); }
+      .hero__eyebrow { font-size: 13px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold); }
+      .hero h1 {
+        margin: 22px 0 20px;
+        font-size: clamp(38px, 5.4vw, 62px);
+        line-height: 1.08;
+        font-weight: 400;
+        letter-spacing: -0.01em;
+        max-width: 15ch;
+      }
+      .hero p { max-width: 56ch; color: var(--muted); margin: 0 0 34px; }
+      .hero__actions { display: flex; gap: 14px; flex-wrap: wrap; }
+      .btn-primary { background: var(--ink); color: #fff; border: 0; padding: 16px 30px; font-size: 12px; cursor: pointer; }
+      .btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--ink); padding: 15px 29px; font-size: 12px; cursor: pointer; }
+
+      .stats { display: flex; gap: 64px; flex-wrap: wrap; margin-top: 56px; }
+      .stat b { display: block; font-size: 34px; font-weight: 400; letter-spacing: -0.02em; }
+      .stat span { font-size: 14px; color: var(--muted); }
+
+      section { padding: 72px 0; border-bottom: 1px solid var(--line); }
+      .section__head { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 40px; }
+      h2 { font-size: 34px; font-weight: 400; margin: 0; letter-spacing: -0.01em; }
+      .section__head a { color: var(--gold); font-size: 14px; text-decoration: none; letter-spacing: 0.06em; }
+
+      .projects { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 28px; }
+      .project { background: #fff; border: 1px solid var(--line); }
+      .project__photo { height: 210px; }
+      .p1 { background: linear-gradient(150deg, #d9e2ec 0%, #a8b8c8 55%, #7d8ea0 100%); }
+      .p2 { background: linear-gradient(150deg, #efe6da 0%, #cbb79a 55%, #a08a68 100%); }
+      .p3 { background: linear-gradient(150deg, #dfe7df 0%, #b3c3b1 55%, #86997f 100%); }
+      .project__body { padding: 24px 24px 28px; }
+      .project h3 { margin: 0 0 6px; font-size: 21px; font-weight: 400; }
+      .project .meta { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
+      .project .price { font-size: 19px; }
+      .project .price span { font-size: 13px; color: var(--muted); }
+
+      .benefits { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 40px; }
+      .benefit b { display: block; font-size: 18px; font-weight: 400; margin-bottom: 8px; }
+      .benefit p { margin: 0; font-size: 15px; color: var(--muted); }
+
+      .demo-note {
+        margin: 56px 0 0;
+        padding: 22px 26px;
+        border: 1px dashed #c9c2b6;
+        background: #fff;
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      .demo-note b { color: var(--ink); }
+      .demo-note code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; color: var(--ink); }
+
+      footer { padding: 54px 0 90px; font-size: 14px; color: var(--muted); }
+      footer .cols { display: flex; gap: 60px; flex-wrap: wrap; justify-content: space-between; }
+
+      @media (max-width: 720px) {
+        nav.menu, .phone { display: none; }
+        .hero { padding: 54px 0 46px; }
+        .stats { gap: 32px; }
+        section { padding: 52px 0; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top">
+      <div class="wrap top__row">
+        <div class="logo">Столица&nbsp;<b>Эстейт</b></div>
+        <nav class="menu">
+          <a href="#projects">Проекты</a>
+          <a href="#benefits">Ипотека</a>
+          <a href="#benefits">О компании</a>
+          <a href="#footer">Контакты</a>
+        </nav>
+        <button class="phone" type="button">+7 812 000-00-00</button>
+      </div>
+    </header>
+
+    <div class="wrap hero">
+      <div class="hero__eyebrow">Санкт-Петербург · 2026</div>
+      <h1>Новостройки с проверенной документацией</h1>
+      <p>
+        Подбираем квартиры в 40 жилых комплексах города: сравниваем цены застройщиков, сроки сдачи и
+        условия рассрочки. Сопровождаем сделку от брони до ключей.
+      </p>
+      <div class="hero__actions">
+        <button class="btn-primary" type="button">Смотреть каталог</button>
+        <button class="btn-ghost" type="button">Заказать подбор</button>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><b>40</b><span>жилых комплексов</span></div>
+        <div class="stat"><b>1 240</b><span>квартир в продаже</span></div>
+        <div class="stat"><b>от 5%</b><span>ставка по ипотеке</span></div>
+      </div>
+    </div>
+
+    <section id="projects">
+      <div class="wrap">
+        <div class="section__head">
+          <h2>Актуальные проекты</h2>
+          <a href="#projects">Все проекты →</a>
+        </div>
+        <div class="projects">
+          <article class="project">
+            <div class="project__photo p1"></div>
+            <div class="project__body">
+              <h3>Северная гавань</h3>
+              <div class="meta">Приморский район · Беговая, 7 мин · сдача II кв. 2027</div>
+              <div class="price">от 8 640 000 ₽ <span>/ студии и 3-комнатные</span></div>
+            </div>
+          </article>
+          <article class="project">
+            <div class="project__photo p2"></div>
+            <div class="project__body">
+              <h3>Гранд Мойка 14</h3>
+              <div class="meta">Адмиралтейский район · Адмиралтейская, 4 мин · сдача 2026</div>
+              <div class="price">от 32 100 000 ₽ <span>/ клубный дом, 46 квартир</span></div>
+            </div>
+          </article>
+          <article class="project">
+            <div class="project__photo p3"></div>
+            <div class="project__body">
+              <h3>Лесной квартал</h3>
+              <div class="meta">Выборгский район · Удельная, 12 мин · сдача I кв. 2028</div>
+              <div class="price">от 7 900 000 ₽ <span>/ первая очередь</span></div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="benefits">
+      <div class="wrap">
+        <div class="section__head"><h2>Почему к нам приходят</h2></div>
+        <div class="benefits">
+          <div class="benefit">
+            <b>Цены застройщика</b>
+            <p>Комиссию платит девелопер. Для покупателя стоимость такая же, как в отделе продаж ЖК.</p>
+          </div>
+          <div class="benefit">
+            <b>Проверка документов</b>
+            <p>Смотрим разрешение на строительство, проектную декларацию и историю переносов сроков.</p>
+          </div>
+          <div class="benefit">
+            <b>Ипотека за день</b>
+            <p>Подаём заявку сразу в семь банков и сравниваем одобренные ставки в одной таблице.</p>
+          </div>
+          <div class="benefit">
+            <b>Сделка под ключ</b>
+            <p>Бронь, эскроу-счёт, электронная регистрация и приёмка квартиры с экспертом.</p>
+          </div>
+        </div>
+
+        <div class="demo-note">
+          <b>Демо-стенд виджета.</b> Чат в правом нижнем углу работает на локальном моке API
+          (<code>demo/mock-api.ts</code>), сервер и ключ Anthropic для просмотра не нужны.
+          Напишите <code>ипотека</code> — придёт ответ без карточек; <code>ошибка</code> — сбой модели с
+          кнопкой «Повторить»; <code>молчок</code> — обрыв соединения. Переписка сохраняется в
+          <code>localStorage</code>: обновите страницу и откройте чат — история подтянется.
+        </div>
+      </div>
+    </section>
+
+    <footer id="footer">
+      <div class="wrap cols">
+        <div>
+          <div class="logo" style="font-size: 15px">Столица&nbsp;<b>Эстейт</b></div>
+          <p>Санкт-Петербург, наб. реки Мойки, 14<br />ежедневно с 9:00 до 21:00</p>
+        </div>
+        <div>
+          <p>+7 812 000-00-00<br />sales@example.com</p>
+        </div>
+        <div>
+          <p>Не является публичной офертой.<br />Демонстрационная страница.</p>
+        </div>
+      </div>
+    </footer>
+
+    <!-- На боевом сайте это ровно одна строчка: <script src="https://.../widget.js" defer></script> -->
+    <script type="module" src="/src/index.tsx"></script>
+  </body>
+</html>
