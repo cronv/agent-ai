@@ -2,8 +2,10 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 
 import { env } from './config/env.js'
 import type { Db } from './db/prisma.js'
+import authPlugin from './plugins/auth.js'
 import contextPlugin from './plugins/context.js'
 import staticAssets from './plugins/static-assets.js'
+import adminRoutes from './routes/admin/index.js'
 import healthRoutes from './routes/health.js'
 import rootRoutes from './routes/root.js'
 import type { SettingsService } from './services/settings/index.js'
@@ -42,8 +44,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   if (options.settings) contextOptions.settings = options.settings
   await app.register(contextPlugin, contextOptions)
 
+  // Регистрируется до маршрутов: плагин вешает общий хук, который закрывает
+  // всё под /api/admin/ — он должен успеть до того, как появятся маршруты.
+  await app.register(authPlugin)
+
   await app.register(rootRoutes)
   await app.register(healthRoutes)
+  await app.register(adminRoutes)
 
   if (options.serveStatic !== false) {
     await app.register(staticAssets)

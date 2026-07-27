@@ -1,10 +1,40 @@
 @import 'tailwindcss';
 
-/* Светлый минимализм: воздух, спокойная типографика, один акцент. */
+/*
+  Светлый минимализм: воздух, спокойная типографика, один акцент.
+
+  Цвета заведены как токены Tailwind 4 — в разметке пишем `bg-canvas`,
+  `text-muted`, `border-line`, а не случайные оттенки из головы.
+  Захотим поменять акцент — меняем в одном месте здесь.
+*/
 @theme {
+  /* Акцент — единственный цветной элемент интерфейса */
   --color-accent: #2f6bff;
+  --color-accent-strong: #1f52d6;
+  --color-accent-soft: #eef3ff;
+
+  /* Поверхности и текст */
+  --color-canvas: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-ink: #101828;
+  --color-muted: #667085;
+  --color-faint: #98a2b3;
+  --color-line: #e6e8ec;
+
+  /* Состояния */
+  --color-ok: #12805c;
+  --color-ok-soft: #e7f6ef;
+  --color-warn: #b54708;
+  --color-warn-soft: #fef4e6;
+  --color-danger: #b42318;
+  --color-danger-soft: #fdeceb;
+
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Мягкие тени: подсказывают слой, а не рисуют коробку */
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
+  --shadow-pop: 0 8px 24px rgb(16 24 40 / 0.1), 0 2px 6px rgb(16 24 40 / 0.06);
 }
 
 html,
@@ -15,4 +45,29 @@ body,
 
 body {
   font-family: var(--font-sans);
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Видимый фокус для клавиатуры — но не рамка вокруг каждого клика мышью */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Цифры в таблицах и карточках не должны прыгать при обновлении */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

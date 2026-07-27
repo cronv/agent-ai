@@ -1,75 +1,50 @@
-import { useEffect, useState } from 'react'
+import type { ReactElement } from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+
+import { AuthProvider } from './auth/AuthProvider.js'
+import { RequireAuth } from './auth/RequireAuth.js'
+import { AdminLayout } from './layout/AdminLayout.js'
+import { ConversationsPage } from './pages/ConversationsPage.js'
+import { DashboardPage } from './pages/DashboardPage.js'
+import { FeedsPage } from './pages/FeedsPage.js'
+import { KnowledgePage } from './pages/KnowledgePage.js'
+import { LeadsPage } from './pages/LeadsPage.js'
+import { LoginPage } from './pages/LoginPage.js'
+import { NotFoundPage } from './pages/NotFoundPage.js'
+import { ProjectsPage } from './pages/ProjectsPage.js'
+import { SettingsPage } from './pages/SettingsPage.js'
 
 /**
- * Заглушка админки.
+ * Маршруты админки.
  *
- * Полноценная админка — вход по паролю, боковое меню и разделы —
- * появляется в тикетах 10–13. Здесь достаточно рабочей сборки и
- * доказательства, что SPA подключена к API сервера.
+ * `basename="/admin"` — SPA живёт на этом префиксе, сервер отдаёт index.html
+ * на любой адрес внутри него (см. plugins/static-assets.ts на сервере).
+ *
+ * Всё, кроме `/login`, закрыто `RequireAuth`. Новый раздел добавляется
+ * одной строкой `<Route>` внутри layout плюс строкой в `navigation.ts`.
  */
 
-type HealthState = { status: string; db: string } | { error: string } | null
-
-const SECTIONS = [
-  'Дашборд',
-  'ЖК',
-  'Фиды',
-  'База знаний',
-  'Переписки',
-  'Лиды',
-  'Настройки',
-] as const
-
-export function App(): React.ReactElement {
-  const [health, setHealth] = useState<HealthState>(null)
-
-  useEffect(() => {
-    fetch('/api/health')
-      .then((response) => response.json())
-      .then((data: { status: string; db: string }) => setHealth(data))
-      .catch((error: unknown) => setHealth({ error: String(error) }))
-  }, [])
-
-  const alive = health !== null && 'status' in health && health.status === 'ok'
-
+export function App(): ReactElement {
   return (
-    <div className="min-h-full bg-white text-slate-900">
-      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-16">
-        <header className="flex flex-col gap-2">
-          <span
-            className={`w-fit rounded-full px-3 py-1 text-xs ${
-              alive ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-            }`}
-          >
-            {health === null
-              ? 'проверяю сервер…'
-              : alive
-                ? 'сервер и база на связи'
-                : 'сервер не отвечает'}
-          </span>
-          <h1 className="text-3xl font-semibold tracking-tight">Админка</h1>
-          <p className="max-w-xl text-slate-500">
-            Каркас готов. Разделы наполняются в следующих задачах — вход по паролю, ЖК, фиды,
-            база знаний, переписки, лиды и настройки.
-          </p>
-        </header>
+    <BrowserRouter basename="/admin">
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
 
-        <nav>
-          <ul className="grid gap-px overflow-hidden rounded-xl bg-slate-200 sm:grid-cols-2 lg:grid-cols-4">
-            {SECTIONS.map((section) => (
-              <li key={section} className="bg-white px-4 py-5">
-                <span className="text-sm font-medium">{section}</span>
-                <span className="mt-1 block text-xs text-slate-400">скоро</span>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        <footer className="text-sm text-slate-400">
-          Ответ <code className="rounded bg-slate-100 px-1 py-0.5">/api/health</code>:{' '}
-          {health === null ? '…' : JSON.stringify(health)}
-        </footer>
-      </div>
-    </div>
+          <Route element={<RequireAuth />}>
+            <Route element={<AdminLayout />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="projects" element={<ProjectsPage />} />
+              <Route path="feeds" element={<FeedsPage />} />
+              <Route path="knowledge" element={<KnowledgePage />} />
+              <Route path="conversations" element={<ConversationsPage />} />
+              <Route path="leads" element={<LeadsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Route>
+          </Route>
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   )
 }
