@@ -40,7 +40,7 @@ import {
  * показывается разбором — добавлено, обновлено, снято с продажи, пропущено.
  */
 
-type FeedFormat = 'yandex' | 'cian' | 'custom'
+type FeedFormat = 'yandex' | 'cian' | 'domclick' | 'custom'
 
 interface FeedView {
   id: string
@@ -99,6 +99,7 @@ type SyncOutcome =
 const FORMAT_LABELS: Record<FeedFormat, string> = {
   yandex: 'Яндекс.Недвижимость',
   cian: 'ЦИАН',
+  domclick: 'ДомКлик',
   custom: 'свой формат',
 }
 
@@ -534,6 +535,10 @@ const FIELD_HINTS: Record<string, string> = {
   building: 'корпус',
   section: 'секция или очередь',
   finishing: 'отделка',
+  balcony: 'балкон или лоджия',
+  windowView: 'вид из окна',
+  bathroom: 'санузел',
+  euroPlan: 'евро-планировка',
   deadline: 'срок сдачи целиком',
   deadlineYear: 'срок сдачи: год',
   deadlineQuarter: 'срок сдачи: квартал',
@@ -541,6 +546,7 @@ const FIELD_HINTS: Record<string, string> = {
   projectName: 'название ЖК',
   projectUrl: 'ссылка на ЖК',
   projectImageUrl: 'картинка ЖК',
+  projectDescription: 'описание ЖК',
   developer: 'застройщик',
   district: 'район',
   metro: 'метро',
@@ -708,7 +714,7 @@ function FeedFormModal({
           hint={
             format === 'custom'
               ? 'Свой формат — ниже нужно указать, где в XML лежит какое поле.'
-              : 'Для Яндекса и ЦИАН поля известны заранее, настраивать ничего не нужно.'
+              : 'Для Яндекса, ЦИАН и ДомКлик поля известны заранее, настраивать ничего не нужно.'
           }
         />
 

@@ -1,5 +1,7 @@
 import type { FeedFormat } from '@prisma/client'
 
+import { DOMCLICK_PROFILE } from './domclick.js'
+
 /**
  * Где в XML лежит какое поле.
  *
@@ -10,8 +12,12 @@ import type { FeedFormat } from '@prisma/client'
  * одного и того же формата отличаются мелочами, и запасной путь дешевле, чем
  * отдельный формат.
  *
- * Профили `yandex` и `cian` встроены. Формат `custom` берёт такой же словарь
- * из поля `fieldMapping` фида — см. `resolveProfile`.
+ * Профили `yandex`, `cian` и `domclick` встроены. Формат `custom` берёт такой
+ * же словарь из поля `fieldMapping` фида — см. `resolveProfile`.
+ *
+ * Если формат хранит часть данных выше уровня лота (как ДомКлик — этажность в
+ * корпусе, а название ЖК в комплексе), словаря путей мало: профиль задаёт свой
+ * обход `collect`, который сначала склеивает лот с родителями. См. domclick.ts.
  */
 
 /** Поля, которые умеет заполнять маппинг. */
@@ -30,6 +36,10 @@ export const FEED_FIELDS = [
   'building',
   'section',
   'finishing',
+  'balcony',
+  'windowView',
+  'bathroom',
+  'euroPlan',
   'deadline',
   'deadlineYear',
   'deadlineQuarter',
@@ -37,6 +47,7 @@ export const FEED_FIELDS = [
   'projectName',
   'projectUrl',
   'projectImageUrl',
+  'projectDescription',
   'developer',
   'district',
   'metro',
@@ -56,6 +67,14 @@ export interface FeedProfile {
   /** Как называется формат в сообщениях об ошибке. */
   label: string
   fields: Partial<Record<FeedField, string[]>>
+  /**
+   * Свой обход документа — для форматов, где данные лота разбросаны по
+   * нескольким уровням вложенности. Возвращает узлы предложений, уже
+   * дополненные полями родителей; `null` означает «файл не этого формата»,
+   * пустой список — исправную, но пустую выгрузку. Если задан, `itemsPaths`
+   * не используется.
+   */
+  collect?: (document: Record<string, unknown>) => Record<string, unknown>[] | null
 }
 
 /**
@@ -79,6 +98,9 @@ export const YANDEX_PROFILE: FeedProfile = {
     building: ['building-section', 'building-number'],
     section: ['building-phase'],
     finishing: ['renovation'],
+    balcony: ['balcony'],
+    windowView: ['window-view'],
+    bathroom: ['bathroom-unit'],
     deadlineYear: ['built-year'],
     deadlineQuarter: ['ready-quarter'],
     planImageUrl: ['image'],
@@ -122,10 +144,13 @@ export const CIAN_PROFILE: FeedProfile = {
   },
 }
 
-export const BUILT_IN_PROFILES: Record<'yandex' | 'cian', FeedProfile> = {
+export const BUILT_IN_PROFILES: Record<'yandex' | 'cian' | 'domclick', FeedProfile> = {
   yandex: YANDEX_PROFILE,
   cian: CIAN_PROFILE,
+  domclick: DOMCLICK_PROFILE,
 }
+
+export { DOMCLICK_PROFILE }
 
 export class FeedMappingError extends Error {
   constructor(message: string) {
@@ -137,7 +162,7 @@ export class FeedMappingError extends Error {
 /**
  * Профиль для фида.
  *
- * Для `yandex` и `cian` — встроенный, `fieldMapping` не нужен. Для `custom` —
+ * Для `yandex`, `cian` и `domclick` — встроенный, `fieldMapping` не нужен. Для `custom` —
  * собирается из `fieldMapping`; принимаются две записи:
  *
  *   { "itemsPath": "offers.offer", "fields": { "price": "cost", … } }

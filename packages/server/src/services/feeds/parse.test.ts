@@ -76,6 +76,8 @@ describe('Яндекс.Недвижимость', () => {
       metroDistanceMin: 11,
       address: 'Ленинградское шоссе, 25, корп. 3',
       url: null,
+      imageUrl: null,
+      description: null,
     })
   })
 
@@ -130,6 +132,8 @@ describe('ЦИАН', () => {
       metroDistanceMin: 8,
       address: 'Москва, ЗАО, ул. Лобачевского, 120',
       url: 'https://novostroy.example.ru/jk/lobachevskiy',
+      imageUrl: null,
+      description: null,
     })
   })
 
@@ -193,6 +197,120 @@ describe('свой формат', () => {
   })
 })
 
+describe('ДомКлик — многокорпусный ЖК', () => {
+  const parsed = parseFeedXml(fixture('domclick-multi.xml'), { format: 'domclick' })
+
+  it('собирает лоты из всех корпусов', () => {
+    expect(parsed.total).toBe(7)
+    expect(parsed.apartments).toHaveLength(7)
+    expect(parsed.skipped).toHaveLength(0)
+  })
+
+  it('разбирает лот целиком, вместе с полями корпуса', () => {
+    const flat = byId(parsed.apartments, '5121530')
+    expect(flat).toMatchObject({
+      externalId: '5121530',
+      price: 14_562_044,
+      rooms: 2,
+      area: 72.27,
+      kitchenArea: 23.28,
+      livingArea: 31.55,
+      floor: 1,
+      // Этажность лежит на корпусе, а не на лоте.
+      floorsTotal: 5,
+      building: '5',
+      finishing: 'без отделки',
+      balcony: 'нет',
+      windowView: 'во двор',
+      bathroom: 'раздельный',
+      euroPlan: false,
+      planImageUrl: 'https://omut.ndv.ru/file/E658FFBA-7277-44F5-A879-1B658A07E298/k5-s1-et1-2.png',
+    })
+    expect(flat.pricePerM2).toBe(201_495)
+  })
+
+  it('складывает срок сдачи из года и квартала готовности корпуса', () => {
+    // built_year 2027 + ready_quarter 1 → последний день первого квартала.
+    expect(byId(parsed.apartments, '5121530').deadline?.toISOString().slice(0, 10)).toBe('2027-03-31')
+  })
+
+  it('лоты разных корпусов получают свой номер корпуса', () => {
+    expect(byId(parsed.apartments, '5459177').building).toBe('5')
+    expect(byId(parsed.apartments, '5121438').building).toBe('6')
+  })
+
+  it('нулевая комнатность — это студия, а не пустое значение', () => {
+    const studio = byId(parsed.apartments, '5121438')
+    expect(studio.rooms).toBe(0)
+    expect(byId(parsed.apartments, '5121449').rooms).toBe(0)
+    // Комнатность остальных не пострадала.
+    expect(parsed.apartments.map((flat) => flat.rooms)).toEqual([2, 1, 3, 0, 0, 1, 2])
+  })
+
+  it('планировка есть у каждого лота', () => {
+    for (const flat of parsed.apartments) {
+      expect(flat.planImageUrl).toMatch(/^https:\/\/omut\.ndv\.ru\//)
+    }
+  })
+
+  it('заполняет ЖК полями комплекса — одинаково для всех лотов', () => {
+    const project = byId(parsed.apartments, '5121438').project
+    expect(project).toMatchObject({
+      name: 'ЖК «Мишино-2»',
+      developer: 'НДВ Супермаркет недвижимости',
+      address: 'Химки городской округ. ул. Озерная, ЖК Мишино-2, корп. 5, 6, 7, 8, 9, 10',
+      imageUrl:
+        'https://exchange.novostroy-m.ru/images/novos/1600x1200_without_watermark/8ee9305058d91e0f006aa0cb9698a5b7.jpg',
+    })
+    expect(project?.description).toMatch(/^ЖК Мишино-2 располагается в городе Химки/)
+    expect(new Set(parsed.apartments.map((flat) => flat.project?.name))).toEqual(new Set(['ЖК «Мишино-2»']))
+  })
+
+  it('кладёт в raw и сам лот, и выжимки корпуса с комплексом', () => {
+    const raw = byId(parsed.apartments, '5121530').raw
+    expect(raw['flat_id']).toBe('5121530')
+    expect(raw['_building']).toMatchObject({ name: '5', floors: '5', building_type: 'кирпично-монолитный' })
+    expect(raw['_complex']).toMatchObject({ id: '3869', name: 'ЖК «Мишино-2»' })
+  })
+})
+
+describe('ДомКлик — однокорпусный ЖК', () => {
+  const parsed = parseFeedXml(fixture('domclick-single.xml'), { format: 'domclick' })
+
+  it('разбирается так же, как многокорпусный', () => {
+    expect(parsed.apartments).toHaveLength(4)
+    expect(parsed.skipped).toHaveLength(0)
+    expect(new Set(parsed.apartments.map((flat) => flat.building))).toEqual(new Set(['1']))
+    expect(byId(parsed.apartments, '6325593').rooms).toBe(0)
+    expect(byId(parsed.apartments, '6325593').floorsTotal).toBe(17)
+    expect(byId(parsed.apartments, '6325593').deadline?.toISOString().slice(0, 10)).toBe('2026-09-30')
+    expect(parsed.apartments[0]?.project?.name).toBe('ЖК «Красная горка» (Подольск)')
+  })
+})
+
+describe('ДомКлик — негодные лоты', () => {
+  const parsed = parseFeedXml(fixture('domclick-incomplete.xml'), { format: 'domclick' })
+
+  it('пропускает лоты без цены и без идентификатора, оставляя причину', () => {
+    expect(parsed.total).toBe(6)
+    expect(parsed.apartments.map((flat) => flat.externalId)).toEqual(['DK-OK-1', 'DK-OK-2', 'DK-OK-2'])
+    expect(parsed.skipped).toEqual([
+      { index: 2, externalId: 'DK-NO-PRICE', reason: 'нет цены или цена не читается как число' },
+      { index: 3, externalId: 'DK-ZERO-PRICE', reason: 'нет цены или цена не читается как число' },
+      { index: 4, externalId: null, reason: 'нет внешнего идентификатора лота' },
+    ])
+  })
+
+  it('корпус без квартир не ломает разбор', () => {
+    expect(byId(parsed.apartments, 'DK-OK-2').building).toBe('3')
+    expect(byId(parsed.apartments, 'DK-OK-2').deadline?.toISOString().slice(0, 10)).toBe('2024-12-31')
+  })
+
+  it('цена с пробелами читается как число', () => {
+    expect(byId(parsed.apartments, 'DK-OK-1').price).toBe(6_340_000)
+  })
+})
+
 describe('плохие фиды', () => {
   it('битый XML — понятная ошибка с местом поломки', () => {
     expect(() => parseFeedXml(fixture('broken.xml'), { format: 'yandex' })).toThrow(FeedParseError)
@@ -210,6 +328,20 @@ describe('плохие фиды', () => {
 
   it('выгрузка ЦИАН, названная фидом Яндекса, не разбирается молча', () => {
     expect(() => parseFeedXml(fixture('cian.xml'), { format: 'yandex' })).toThrow(FeedParseError)
+  })
+
+  it('выгрузка Яндекса, названная фидом ДомКлик, не разбирается молча', () => {
+    expect(() => parseFeedXml(fixture('yandex-realty.xml'), { format: 'domclick' })).toThrow(/не похоже на выгрузку/i)
+  })
+
+  it('битый XML в формате ДомКлик — та же понятная ошибка', () => {
+    expect(() => parseFeedXml(fixture('broken.xml'), { format: 'domclick' })).toThrow(/не является правильным XML/i)
+  })
+
+  it('выгрузка ДомКлик без единого корпуса — не ошибка, а пустой фид', () => {
+    const parsed = parseFeedXml('<?xml version="1.0"?><complexes></complexes>', { format: 'domclick' })
+    expect(parsed.total).toBe(0)
+    expect(parsed.apartments).toHaveLength(0)
   })
 
   it('пустой ответ — отдельная ошибка', () => {

@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Обрезанная выгрузка ДомКлик: ЖК с двумя корпусами. Реальная структура novostroy-m, лоты и описания урезаны. -->
+<complexes>
+<complex>
+  <id>3869</id>
+  <name>ЖК «Мишино-2»</name>
+  <latitude>55.923682</latitude>
+  <longitude>37.434591</longitude>
+  <address>Химки городской округ. ул. Озерная, ЖК Мишино-2, корп. 5, 6, 7, 8, 9, 10</address>
+  <images>
+    <image>https://exchange.novostroy-m.ru/images/novos/1600x1200_without_watermark/8ee9305058d91e0f006aa0cb9698a5b7.jpg</image>
+    <image>https://exchange.novostroy-m.ru/images/novos/1600x1200_without_watermark/d154ab1fdc616ea729546993c8ac3b99.jpg</image>
+  </images>
+  <description_main>
+    <title>ЖК «Мишино-2»</title>
+    <text><![CDATA[ЖК Мишино-2 располагается в городе Химки, в северной его части. Комплекс состоит из 6 корпусов высотой 5 этажей. Дома выполнены в едином архитектурном стиле. На первых этажах предусмотрены зоны ожидания, широкие дверные проемы, современный дизайн. В каждом дом]]></text>
+  </description_main>
+  <buildings>
+    <building>
+      <id>167487</id>
+      <fz_214>1</fz_214>
+      <name>5</name>
+      <floors>5</floors>
+      <building_state>unfinished</building_state>
+      <built_year>2027</built_year>
+      <ready_quarter>1</ready_quarter>
+      <building_type>кирпично-монолитный</building_type>
+      <flats>
+        <flat>
+          <flat_id>5121530</flat_id>
+          <euro_plan>0</euro_plan>
+          <apartment>2</apartment>
+          <floor>1</floor>
+          <room>2</room>
+          <balcony>нет</balcony>
+          <renovation>нет</renovation>
+          <price>14562044</price>
+          <area>72.27</area>
+          <kitchen_area>23.28</kitchen_area>
+          <living_area>31.55</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>раздельный</bathroom>
+          <plan>https://omut.ndv.ru/file/E658FFBA-7277-44F5-A879-1B658A07E298/k5-s1-et1-2.png</plan>
+          <housing_type>0</housing_type>
+          <ready_housing>0</ready_housing>
+          <description><![CDATA[Продаётся 2-комнатная квартира в строящемся доме (Корпус 5), срок сдачи: 1-кв. 2027, общей площадью 72.27 кв.м., на 1 этаже. ЖК «Мишино-2» — современный мультиформатный жилой компл]]></description>
+        </flat>
+        <flat>
+          <flat_id>5292810</flat_id>
+          <euro_plan>0</euro_plan>
+          <apartment>10</apartment>
+          <floor>2</floor>
+          <room>1</room>
+          <balcony>нет</balcony>
+          <renovation>нет</renovation>
+          <price>10372260</price>
+          <area>47.69</area>
+          <kitchen_area>24.55</kitchen_area>
+          <living_area>13.95</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>совмещенный</bathroom>
+          <plan>https://omut.ndv.ru/file/F71007D6-CD4A-434B-8834-68E0033E09EE/k5-s1-et1-5.png</plan>
+          <housing_type>0</housing_type>
+          <ready_housing>0</ready_housing>
+          <description><![CDATA[Продаётся 1-комнатная квартира в строящемся доме (Корпус 5), срок сдачи: 1-кв. 2027, общей площадью 47.69 кв.м., на 2 этаже. ЖК «Мишино-2» — современный мультиформатный жилой компл]]></description>
+        </flat>
+        <flat>
+          <flat_id>5459177</flat_id>
+          <euro_plan>0</euro_plan>
+          <apartment>34</apartment>
+          <floor>1</floor>
+          <room>3</room>
+          <balcony>больше 2</balcony>
+          <renovation>нет</renovation>
+          <price>19084928</price>
+          <area>95.55</area>
+          <kitchen_area>21.32</kitchen_area>
+          <living_area>41.70</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>более 2</bathroom>
+          <plan>https://omut.ndv.ru/file/7AE7B68F-B0AD-47EE-8AFD-AC246BEC6947/k5-s2-et1-1.png</plan>
+          <housing_type>0</housing_type>
+          <ready_housing>0</ready_housing>
+          <description><![CDATA[Продаётся 3-комнатная квартира в строящемся доме (Корпус 5), срок сдачи: 1-кв. 2027, общей площадью 95.55 кв.м., на 1 этаже. ЖК «Мишино-2» — современный мультиформатный жилой компл]]></description>
+        </flat>
+      </flats>
+    </building>
+    <building>
+      <id>167488</id>
+      <fz_214>1</fz_214>
+      <name>6</name>
+      <floors>5</floors>
+      <building_state>unfinished</building_state>
+      <built_year>2027</built_year>
+      <ready_quarter>1</ready_quarter>
+      <building_type>кирпично-монолитный</building_type>
+      <flats>
+        <flat>
+          <flat_id>5121438</flat_id>
+          <euro_plan>0</euro_plan>
+          <apartment>29</apartment>
+          <floor>4</floor>
+          <room>0</room>
+          <balcony>нет</balcony>
+          <renovation>нет</renovation>
+          <price>6756008</price>
+          <area>26.06</area>
+          <kitchen_area>5.16</kitchen_area>
+          <living_area>14.04</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>совмещенный</bathroom>
+          <plan>https://omut.ndv.ru/file/79D0D805-90CB-44AF-B4E1-21460A1FDCA0/k6-s1-et2-7.png</plan>
+          <housing_type>0</housing_type>
+          <ready_housing>0</ready_housing>
+          <description><![CDATA[Продаётся студия в строящемся доме (Корпус 6), срок сдачи: 1-кв. 2027, общей площадью 26.06 кв.м., на 4 этаже. ЖК «Мишино-2» — современный мультиформатный жилой комплекс, который в]]></description>
+        </flat>
+        <flat>
+          <flat_id>5121449</flat_id>
+          <euro_plan>0</euro_plan>
+          <apartment>65</apartment>
+          <floor>5</floor>
+          <room>0</room>
+          <balcony>нет</balcony>
+          <renovation>нет</renovation>
+          <price>8168160</price>
+          <area>26.06</area>
+          <kitchen_area>5.16</kitchen_area>
+          <living_area>14.04</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>совмещенный</bathroom>
+          <plan>https://omut.ndv.ru/file/971CD8BA-AFFB-42B8-BCBB-916125F3970B/k6-s2-et2-5.png</plan>
+          <housing_type>0</housing_type>
+          <ready_housing>0</ready_housing>
+          <description><![CDATA[Продаётся студия в строящемся доме (Корпус 6), срок сдачи: 1-кв. 2027, общей площадью 26.06 кв.м., на 5 этаже. ЖК «Мишино-2» — современный мультиформатный жилой комплекс, который в]]></description>
+        </flat>
+        <flat>
+          <flat_id>5121492</flat_id>
+          <euro_plan>0</euro_plan>
+          <apartment>100</apartment>
+          <floor>2</floor>
+          <room>1</room>
+          <balcony>лоджия</balcony>
+          <renovation>нет</renovation>
+          <price>9392354</price>
+          <area>42.56</area>
+          <kitchen_area>9.60</kitchen_area>
+          <living_area>17.88</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>совмещенный</bathroom>
+          <plan>https://omut.ndv.ru/file/C267963F-B510-450E-88BB-649B052663B8/k6-s4-et2-3.png</plan>
+          <housing_type>0</housing_type>
+          <ready_housing>0</ready_housing>
+          <description><![CDATA[Продаётся 1-комнатная квартира в строящемся доме (Корпус 6), срок сдачи: 1-кв. 2027, общей площадью 42.56 кв.м., на 2 этаже. ЖК «Мишино-2» — современный мультиформатный жилой компл]]></description>
+        </flat>
+        <flat>
+          <flat_id>5121514</flat_id>
+          <euro_plan>0</euro_plan>
+          <apartment>4</apartment>
+          <floor>1</floor>
+          <room>2</room>
+          <balcony>нет</balcony>
+          <renovation>нет</renovation>
+          <price>13494485</price>
+          <area>66.34</area>
+          <kitchen_area>23.28</kitchen_area>
+          <living_area>27.45</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>раздельный</bathroom>
+          <plan>https://omut.ndv.ru/file/DFD41430-2676-41C7-B705-50BD063A4BBB/k6-s1-et1-4.png</plan>
+          <housing_type>0</housing_type>
+          <ready_housing>0</ready_housing>
+          <description><![CDATA[Продаётся 2-комнатная квартира в строящемся доме (Корпус 6), срок сдачи: 1-кв. 2027, общей площадью 66.34 кв.м., на 1 этаже. ЖК «Мишино-2» — современный мультиформатный жилой компл]]></description>
+        </flat>
+      </flats>
+    </building>
+  </buildings>
+  <sales_info>
+    <sales_phone>+74951267937</sales_phone>
+  </sales_info>
+  <developer>
+    <id>303988</id>
+    <name>НДВ Супермаркет недвижимости</name>
+    <phone>+74951267937</phone>
+    <site>www.ndv.ru</site>
+    <logo>https://media.novostroy-m.ru/images/static/NDV/logo/logo_ndv_2024.png</logo>
+  </developer>
+</complex>
+</complexes>

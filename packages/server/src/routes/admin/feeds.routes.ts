@@ -23,7 +23,7 @@ import { isFeedSyncing, syncFeed, syncingFeedIds } from '../../services/feeds/sy
  * быть своё расписание, и оно должно начать действовать сразу, без перезапуска.
  */
 
-const FORMATS: FeedFormat[] = ['yandex', 'cian', 'custom']
+const FORMATS: FeedFormat[] = ['yandex', 'cian', 'domclick', 'custom']
 
 interface FeedParams {
   id: string

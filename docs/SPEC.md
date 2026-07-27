@@ -114,7 +114,7 @@ Anthropic Claude. `claude-haiku-4-5-20251001` — основная модель 
 ### Схема данных (PostgreSQL, Prisma)
 
 - `Project` — ЖК: `name`, `slug`, `developer`, `district`, `metro`, `metroDistanceMin`, `address`, `deadline`, `finishing`, `description`, `url`, `imageUrl`, `isActive`.
-- `Feed` — источник: `name`, `url`, `format` (`yandex` | `cian` | `custom`), `fieldMapping` (JSON), `scheduleCron`, `isActive`, `lastRunAt`, `lastStatus`, `lastError`, `lastCount`.
+- `Feed` — источник: `name`, `url`, `format` (`yandex` | `cian` | `domclick` | `custom`), `fieldMapping` (JSON), `scheduleCron`, `isActive`, `lastRunAt`, `lastStatus`, `lastError`, `lastCount`.
 - `Apartment` — лот: `feedId`, `projectId`, `externalId`, `rooms`, `area`, `livingArea`, `kitchenArea`, `floor`, `floorsTotal`, `price`, `pricePerM2`, `building`, `section`, `finishing`, `deadline`, `planImageUrl`, `url`, `isActive`, `raw` (JSON), `syncedAt`. Уникальность по (`feedId`, `externalId`).
 - `KnowledgeDoc` — документ: `projectId?`, `filename`, `mimeType`, `sizeBytes`, `charCount`, `status`, `error`, `createdAt`.
 - `KnowledgeChunk` — фрагмент: `docId`, `projectId?`, `content`, `position`, `tsv` (tsvector, GIN-индекс).
@@ -131,7 +131,7 @@ Anthropic Claude. `claude-haiku-4-5-20251001` — основная модель 
 
 ### Синхронизация фидов
 
-`node-cron` внутри процесса приложения, расписание из настроек (по умолчанию каждые 3 часа). Разбор XML — `fast-xml-parser`. Встроенные профили полей для Яндекс.Недвижимости и ЦИАН; для `custom` — маппинг «путь в XML → поле квартиры», задаётся в админке.
+`node-cron` внутри процесса приложения, расписание из настроек (по умолчанию каждые 3 часа). Разбор XML — `fast-xml-parser`. Встроенные профили полей для Яндекс.Недвижимости, ЦИАН и ДомКлик; для `custom` — маппинг «путь в XML → поле квартиры», задаётся в админке. В выгрузке ДомКлик данные лота разбросаны по уровням `complex → building → flat`, поэтому её профиль задаёт собственный обход документа, а не словарь путей.
 
 Импорт — upsert по (`feedId`, `externalId`). Лоты, пропавшие из фида, помечаются `isActive = false`, не удаляются (нужны для истории переписок). ЖК создаётся автоматически по названию из фида, если не найден; дальше редактируется руками.
 
@@ -157,7 +157,7 @@ React SPA под `/admin`. Авторизация — логин/пароль и
 
 Vitest. Три группы:
 
-1. **Чистая логика, без БД** — разбор фида (эталонные XML-файлы Яндекса и ЦИАН в фикстурах, включая битые), маппинг полей, нормализация цен и площадей, чанкинг текста, определение момента запроса контакта, выбор модели по запросу.
+1. **Чистая логика, без БД** — разбор фида (эталонные XML-файлы Яндекса, ЦИАН и ДомКлик в фикстурах, включая битые), маппинг полей, нормализация цен и площадей, чанкинг текста, определение момента запроса контакта, выбор модели по запросу.
 2. **API поверх реальной БД** — `fastify.inject` против тестовой базы в Docker, миграции и очистка между тестами. Проверяются: полный цикл импорта фида, поиск квартир по всем комбинациям фильтров, поиск по базе знаний с русской морфологией, сохранение лида с вебхуком (мок), авторизация админки (401 без куки).
 3. **Движок диалога с мок-клиентом Anthropic** — реальные HTTP-запросы к модели не делаются. Проверяется, что при заданном ответе модели с tool call инструмент вызывается с правильными параметрами, результат возвращается модели, а структурные данные квартир попадают в сообщение.
 

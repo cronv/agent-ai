@@ -219,7 +219,7 @@ describe('маршруты фидов', () => {
 
       expect(response.statusCode).toBe(200)
       const meta = response.json<{ formats: string[]; fields: string[]; defaultCron: string }>()
-      expect(meta.formats).toEqual(['yandex', 'cian', 'custom'])
+      expect(meta.formats).toEqual(['yandex', 'cian', 'domclick', 'custom'])
       expect(meta.fields).toContain('externalId')
       expect(meta.defaultCron).toBe('0 */3 * * *')
     })

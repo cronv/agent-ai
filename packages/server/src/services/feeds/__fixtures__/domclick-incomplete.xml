@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Выгрузка ДомКлик с негодными лотами: без цены, с нулевой ценой, без flat_id,
+     повторяющийся лот и корпус, в котором вовсе нет квартир. Годными должны
+     остаться два: DK-OK-1 (студия) и DK-OK-2. -->
+<complexes>
+<complex>
+  <id>9001</id>
+  <name>ЖК «Заречный»</name>
+  <address>Московская область, г. Видное, ул. Строителей, 12</address>
+  <images>
+    <image>https://images.example.ru/zarechny/main.jpg</image>
+  </images>
+  <description_main>
+    <title>ЖК «Заречный»</title>
+    <text><![CDATA[Два корпуса переменной этажности в пятнадцати минутах от станции.]]></text>
+  </description_main>
+  <buildings>
+    <building>
+      <id>500</id>
+      <name>1</name>
+      <floors>9</floors>
+      <building_state>unfinished</building_state>
+      <built_year>2028</built_year>
+      <ready_quarter>3</ready_quarter>
+      <building_type>монолитный</building_type>
+      <flats>
+        <flat>
+          <flat_id>DK-OK-1</flat_id>
+          <euro_plan>0</euro_plan>
+          <floor>4</floor>
+          <room>0</room>
+          <balcony>лоджия</balcony>
+          <renovation>нет</renovation>
+          <price>6 340 000</price>
+          <area>24.8</area>
+          <kitchen_area>0</kitchen_area>
+          <living_area>18.4</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>совмещенный</bathroom>
+          <plan>https://plans.example.ru/zarechny/DK-OK-1.png</plan>
+        </flat>
+        <flat>
+          <flat_id>DK-NO-PRICE</flat_id>
+          <floor>5</floor>
+          <room>1</room>
+          <area>38.1</area>
+        </flat>
+        <flat>
+          <flat_id>DK-ZERO-PRICE</flat_id>
+          <floor>6</floor>
+          <room>1</room>
+          <price>0</price>
+          <area>38.1</area>
+        </flat>
+        <flat>
+          <floor>7</floor>
+          <room>2</room>
+          <price>11400000</price>
+          <area>56.2</area>
+        </flat>
+      </flats>
+    </building>
+    <building>
+      <id>501</id>
+      <name>2</name>
+      <floors>12</floors>
+      <building_state>unfinished</building_state>
+      <built_year>2029</built_year>
+      <flats>
+      </flats>
+    </building>
+    <building>
+      <id>502</id>
+      <name>3</name>
+      <floors>12</floors>
+      <building_state>ready</building_state>
+      <built_year>2024</built_year>
+      <ready_quarter>4</ready_quarter>
+      <flats>
+        <flat>
+          <flat_id>DK-OK-2</flat_id>
+          <floor>2</floor>
+          <room>2</room>
+          <price>12750000</price>
+          <area>54.0</area>
+          <plan>https://plans.example.ru/zarechny/DK-OK-2.png</plan>
+        </flat>
+        <flat>
+          <flat_id>DK-OK-2</flat_id>
+          <floor>2</floor>
+          <room>2</room>
+          <price>13900000</price>
+          <area>54.0</area>
+        </flat>
+      </flats>
+    </building>
+  </buildings>
+  <developer>
+    <id>777</id>
+    <name>НДВ Супермаркет недвижимости</name>
+    <phone>+74951112233</phone>
+    <site>www.ndv.ru</site>
+  </developer>
+</complex>
+</complexes>

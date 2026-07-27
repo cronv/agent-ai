@@ -43,6 +43,14 @@ export interface ApartmentCard {
   building: string | null
   section: string | null
   finishing: string | null
+  /** «лоджия», «нет», «больше 2» — как это назвала выгрузка. */
+  balcony: string | null
+  /** «во двор», «во двор и на улицу». */
+  windowView: string | null
+  /** «совмещенный», «раздельный», «более 2». */
+  bathroom: string | null
+  /** Евро-планировка: кухня-гостиная вместо отдельной кухни. */
+  euroPlan: boolean | null
   /** Срок сдачи в формате `YYYY-MM-DD` или `null`. */
   deadline: string | null
   planImageUrl: string | null
@@ -265,6 +273,10 @@ function toCard(row: ApartmentRow): ApartmentCard {
     building: row.building,
     section: row.section,
     finishing: row.finishing,
+    balcony: row.balcony,
+    windowView: row.windowView,
+    bathroom: row.bathroom,
+    euroPlan: row.euroPlan,
     deadline: toDateString(row.deadline),
     planImageUrl: row.planImageUrl,
     url: row.url,

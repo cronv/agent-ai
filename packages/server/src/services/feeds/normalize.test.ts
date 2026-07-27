@@ -168,6 +168,13 @@ describe('normalizeFinishing', () => {
     expect(normalizeFinishing('под ключ')).toBe('чистовая')
     expect(normalizeFinishing('современный стиль')).toBe('современный стиль')
   })
+
+  it('«нет» в графе отделки означает её отсутствие — так пишет ДомКлик', () => {
+    expect(normalizeFinishing('нет')).toBe('без отделки')
+    expect(normalizeFinishing('отсутствует')).toBe('без отделки')
+    // «нет» как часть фразы про что-то другое трогать не надо.
+    expect(normalizeFinishing('нет данных о ремонте')).toBe('нет данных о ремонте')
+  })
 })
 
 describe('normalizeText и normalizeUrl', () => {

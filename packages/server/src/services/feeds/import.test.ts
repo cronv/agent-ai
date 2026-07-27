@@ -232,6 +232,163 @@ describe('importFeed — фид ЦИАН', () => {
   })
 })
 
+describe('importFeed — фид ДомКлик', () => {
+  async function createDomclickFeed(name = 'ЖК «Мишино-2»'): Promise<string> {
+    return createFeed({ name, format: 'domclick', url: 'https://exchange.example.ru/export/mishino2' })
+  }
+
+  it('заводит один ЖК на файл и складывает лоты всех корпусов', async () => {
+    const feedId = await createDomclickFeed()
+
+    const result = await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      total: 7,
+      created: 7,
+      skipped: 0,
+      projectsCreated: 1,
+      activeCount: 7,
+      error: null,
+    })
+
+    const project = await testDb.project.findFirstOrThrow({ where: { name: 'ЖК «Мишино-2»' } })
+    expect(project).toMatchObject({
+      slug: 'zhk-mishino-2',
+      developer: 'НДВ Супермаркет недвижимости',
+      address: 'Химки городской округ. ул. Озерная, ЖК Мишино-2, корп. 5, 6, 7, 8, 9, 10',
+      imageUrl:
+        'https://exchange.novostroy-m.ru/images/novos/1600x1200_without_watermark/8ee9305058d91e0f006aa0cb9698a5b7.jpg',
+    })
+    expect(project.description).toMatch(/^ЖК Мишино-2 располагается/)
+
+    const apartments = await testDb.apartment.findMany({ where: { feedId } })
+    expect(apartments).toHaveLength(7)
+    expect(apartments.every((row) => row.projectId === project.id)).toBe(true)
+    // Корпуса разные, ЖК один.
+    expect(new Set(apartments.map((row) => row.building))).toEqual(new Set(['5', '6']))
+  })
+
+  it('дополняет лот полями корпуса и сроком сдачи из года и квартала', async () => {
+    const feedId = await createDomclickFeed()
+    await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    const flat = await testDb.apartment.findFirstOrThrow({ where: { feedId, externalId: '5121530' } })
+    expect(flat).toMatchObject({
+      rooms: 2,
+      area: 72.27,
+      floor: 1,
+      floorsTotal: 5,
+      building: '5',
+      finishing: 'без отделки',
+      balcony: 'нет',
+      windowView: 'во двор',
+      bathroom: 'раздельный',
+      euroPlan: false,
+      planImageUrl: 'https://omut.ndv.ru/file/E658FFBA-7277-44F5-A879-1B658A07E298/k5-s1-et1-2.png',
+      isActive: true,
+    })
+    expect(flat.deadline?.toISOString().slice(0, 10)).toBe('2027-03-31')
+  })
+
+  it('студии сохраняются как ноль комнат, а не как пустое значение', async () => {
+    const feedId = await createDomclickFeed()
+    await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    const studios = await testDb.apartment.findMany({ where: { feedId, rooms: 0 }, orderBy: { externalId: 'asc' } })
+    expect(studios.map((row) => row.externalId)).toEqual(['5121438', '5121449'])
+    expect(await testDb.apartment.count({ where: { feedId, rooms: null } })).toBe(0)
+  })
+
+  it('планировка есть у каждого лота', async () => {
+    const feedId = await createDomclickFeed()
+    await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    expect(await testDb.apartment.count({ where: { feedId, planImageUrl: null } })).toBe(0)
+  })
+
+  it('однокорпусный ЖК импортируется так же', async () => {
+    const feedId = await createDomclickFeed('ЖК «Красная горка»')
+
+    const result = await importFeed(feedId, { db: testDb, download: serves('domclick-single.xml') })
+
+    expect(result).toMatchObject({ status: 'ok', total: 4, created: 4, projectsCreated: 1 })
+    const flat = await testDb.apartment.findFirstOrThrow({ where: { feedId, externalId: '6325593' } })
+    expect(flat.rooms).toBe(0)
+    expect(flat.floorsTotal).toBe(17)
+    expect(flat.deadline?.toISOString().slice(0, 10)).toBe('2026-09-30')
+  })
+
+  it('повторный импорт не плодит ни квартиры, ни ЖК и не затирает правки в админке', async () => {
+    const feedId = await createDomclickFeed()
+    await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    // Менеджер поправил ЖК руками — импорт не должен вернуть всё как было.
+    const project = await testDb.project.findFirstOrThrow({ where: { name: 'ЖК «Мишино-2»' } })
+    await testDb.project.update({
+      where: { id: project.id },
+      data: { district: 'Химки', description: 'Своими словами', metro: 'Планерная' },
+    })
+
+    const second = await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    expect(second).toMatchObject({ status: 'ok', created: 0, updated: 7, deactivated: 0, projectsCreated: 0 })
+    expect(await testDb.project.count()).toBe(1)
+    expect(await testDb.apartment.count()).toBe(7)
+
+    const kept = await testDb.project.findUniqueOrThrow({ where: { id: project.id } })
+    expect(kept).toMatchObject({ district: 'Химки', description: 'Своими словами', metro: 'Планерная' })
+  })
+
+  it('проданный лот выключается, новый заводится, изменившаяся цена обновляется', async () => {
+    const feedId = await createDomclickFeed()
+    await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    const result = await importFeed(feedId, { db: testDb, download: serves('domclick-multi-updated.xml') })
+
+    expect(result).toMatchObject({ status: 'ok', created: 1, updated: 6, deactivated: 1, activeCount: 7 })
+
+    const sold = await testDb.apartment.findFirstOrThrow({ where: { feedId, externalId: '5292810' } })
+    expect(sold.isActive).toBe(false)
+
+    const fresh = await testDb.apartment.findFirstOrThrow({ where: { feedId, externalId: '5121600' } })
+    expect(fresh).toMatchObject({ isActive: true, euroPlan: true, finishing: 'чистовая', balcony: 'лоджия' })
+
+    const cheaper = await testDb.apartment.findFirstOrThrow({ where: { feedId, externalId: '5121530' } })
+    expect(cheaper.price).toBe(13_990_000)
+  })
+
+  it('пропускает лоты без цены и без идентификатора, объясняя причину', async () => {
+    const feedId = await createDomclickFeed('ЖК «Заречный»')
+
+    const result = await importFeed(feedId, { db: testDb, download: serves('domclick-incomplete.xml') })
+
+    expect(result).toMatchObject({ status: 'ok', total: 6, created: 2, skipped: 4 })
+    expect(result.warnings).toEqual([
+      'Лот DK-NO-PRICE: нет цены или цена не читается как число',
+      'Лот DK-ZERO-PRICE: нет цены или цена не читается как число',
+      'Предложение №4: нет внешнего идентификатора лота',
+      'Лот DK-OK-2: повторяется в фиде, взят первый',
+    ])
+
+    const apartments = await testDb.apartment.findMany({ where: { feedId }, orderBy: { externalId: 'asc' } })
+    expect(apartments.map((row) => row.externalId)).toEqual(['DK-OK-1', 'DK-OK-2'])
+    expect(apartments[0]?.rooms).toBe(0)
+    expect(apartments[1]?.price).toBe(12_750_000)
+  })
+
+  it('битый XML не трогает уже загруженные квартиры', async () => {
+    const feedId = await createDomclickFeed()
+    await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    const result = await importFeed(feedId, { db: testDb, download: serves('broken.xml') })
+
+    expect(result.status).toBe('error')
+    expect(result.error).toMatch(/не является правильным XML/i)
+    expect(await testDb.apartment.count({ where: { feedId, isActive: true } })).toBe(7)
+  })
+})
+
 describe('importFeed — свой формат', () => {
   it('берёт соответствие полей из fieldMapping', async () => {
     const feedId = await createFeed({

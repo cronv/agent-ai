@@ -8,6 +8,7 @@ import {
   normalizeText,
   normalizeUrl,
   parseArea,
+  parseBoolean,
   parseDate,
   parseInteger,
   parsePrice,
@@ -42,6 +43,8 @@ export interface ParsedProject {
   metroDistanceMin: number | null
   address: string | null
   url: string | null
+  imageUrl: string | null
+  description: string | null
 }
 
 /** Квартира, готовая к записи в базу. */
@@ -58,6 +61,10 @@ export interface ParsedApartment {
   building: string | null
   section: string | null
   finishing: string | null
+  balcony: string | null
+  windowView: string | null
+  bathroom: string | null
+  euroPlan: boolean | null
   deadline: Date | null
   planImageUrl: string | null
   url: string | null
@@ -171,6 +178,14 @@ function parseXmlDocument(xml: string): Record<string, unknown> {
  * Если контейнера нет вовсе — файл не того формата, и это ошибка.
  */
 function findOffers(document: Record<string, unknown>, profile: FeedProfile): Record<string, unknown>[] {
+  // Формат с вложенной структурой обходит документ сам: список лотов там не
+  // лежит по одному пути, его нужно собрать, склеив с полями родителей.
+  if (profile.collect) {
+    const collected = profile.collect(document)
+    if (collected !== null) return collected
+    throw wrongFormat(document, profile)
+  }
+
   for (const path of profile.itemsPaths) {
     const segments = path.split('.')
     const last = segments.pop()
@@ -189,12 +204,17 @@ function findOffers(document: Record<string, unknown>, profile: FeedProfile): Re
     if (detected) return detected
   }
 
+  throw wrongFormat(document, profile)
+}
+
+/** Ошибка «файл не того формата» с перечислением того, что в нём нашлось. */
+function wrongFormat(document: Record<string, unknown>, profile: FeedProfile): FeedParseError {
   const roots = Object.keys(document)
     .filter((key) => key !== '?xml')
     .map((key) => `«${key}»`)
     .join(', ')
   const expected = profile.itemsPaths.length > 0 ? ` Ожидался путь ${profile.itemsPaths.map((p) => `«${p}»`).join(' или ')}.` : ''
-  throw new FeedParseError(
+  return new FeedParseError(
     `Это не похоже на выгрузку в формате «${profile.label}»: в файле нет списка предложений.${expected} Найдены разделы: ${roots || 'нет'}`,
   )
 }
@@ -311,6 +331,10 @@ function buildApartment(offer: Record<string, unknown>, profile: FeedProfile): B
     building: normalizeText(pick(offer, profile, 'building'), 120),
     section: normalizeText(pick(offer, profile, 'section'), 120),
     finishing: normalizeFinishing(pick(offer, profile, 'finishing')),
+    balcony: normalizeText(pick(offer, profile, 'balcony'), 120),
+    windowView: normalizeText(pick(offer, profile, 'windowView'), 120),
+    bathroom: normalizeText(pick(offer, profile, 'bathroom'), 120),
+    euroPlan: parseBoolean(pick(offer, profile, 'euroPlan')),
     deadline,
     planImageUrl: normalizeUrl(pick(offer, profile, 'planImageUrl')),
     url: normalizeUrl(pick(offer, profile, 'url')),
@@ -330,6 +354,8 @@ function buildProject(offer: Record<string, unknown>, profile: FeedProfile): Par
     metroDistanceMin: parseInteger(pick(offer, profile, 'metroDistanceMin')),
     address: normalizeText(pick(offer, profile, 'address'), 300),
     url: normalizeUrl(pick(offer, profile, 'projectUrl')),
+    imageUrl: normalizeUrl(pick(offer, profile, 'projectImageUrl')),
+    description: normalizeText(pick(offer, profile, 'projectDescription'), 4000),
   }
 }
 

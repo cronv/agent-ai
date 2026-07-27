@@ -273,7 +273,8 @@ function utcDate(year: number, month: number, day: number): Date | null {
 
 /** Коды отделки из выгрузок → человеческие слова. */
 const FINISHING_LABELS: [RegExp, string][] = [
-  [/^(without|no|none|без\s*отделк)/i, 'без отделки'],
+  // «нет» в графе отделки означает именно её отсутствие: так пишет ДомКлик.
+  [/^(without|no|none|без\s*отделк|нет$|отсутств)/i, 'без отделки'],
   [/^(prefine|pre-fine|whitebox|white-box|предчистов|подчистов)/i, 'предчистовая'],
   [/^(rough|черновая|черновой)/i, 'черновая'],
   [/^(design|дизайнер)/i, 'дизайнерская'],

@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Обрезанная выгрузка ДомКлик: ЖК из одного корпуса, без блоков discounts и infrastructure. -->
+<complexes>
+<complex>
+  <id>60724</id>
+  <name>ЖК «Красная горка» (Подольск)</name>
+  <latitude>55.45188495488903</latitude>
+  <longitude>37.54111555952444</longitude>
+  <address>Подольск городской округ. ул. Садовая, д. 14</address>
+  <images>
+    <image>https://exchange.novostroy-m.ru/images/novos/860x450_without_watermark/4d9b45be44a322a4377a598c9cf5b756.jpg</image>
+    <image>https://exchange.novostroy-m.ru/images/novos/860x450_without_watermark/c2eeadd7c0d57817bf79004f35ca075a.jpg</image>
+  </images>
+  <description_main>
+    <title>ЖК «Красная горка» (Подольск)</title>
+    <text><![CDATA[Жилой комплекс «Красная горка» возводится в городе Подольск, неподалеку от большого горнолыжного комплекса. Это экологически чистый город вблизи Москвы, добраться до которого можно как на автомобиле, так и общественным транспортом: легкий выезд от МКАД обеспеч]]></text>
+  </description_main>
+  <buildings>
+    <building>
+      <id>182602</id>
+      <fz_214>0</fz_214>
+      <name>1</name>
+      <floors>17</floors>
+      <building_state>unfinished</building_state>
+      <built_year>2026</built_year>
+      <ready_quarter>3</ready_quarter>
+      <building_type>панельный</building_type>
+      <flats>
+        <flat>
+          <flat_id>6325593</flat_id>
+          <euro_plan>0</euro_plan>
+          <apartment>307</apartment>
+          <floor>7</floor>
+          <room>0</room>
+          <balcony>лоджия</balcony>
+          <renovation>нет</renovation>
+          <price>4435200</price>
+          <area>28.80</area>
+          <kitchen_area>5.00</kitchen_area>
+          <living_area>13.70</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>совмещенный</bathroom>
+          <plan>https://omut.ndv.ru/file/3B777B8B-1D8E-4D89-8AB1-ABE1DD84C10B/k1-s3-et3-6.png</plan>
+          <housing_type>0</housing_type>
+          <ready_housing>0</ready_housing>
+          <description><![CDATA[Продаётся студия в строящемся доме (Корпус 1), срок сдачи: 3-кв. 2026, общей площадью 28.80 кв.м., на 7 этаже. ЖК «Красная горка» - современный 17-этажный жилой комплекс комфорт-кл]]></description>
+        </flat>
+        <flat>
+          <flat_id>6325687</flat_id>
+          <euro_plan>0</euro_plan>
+          <apartment>92</apartment>
+          <floor>13</floor>
+          <room>1</room>
+          <balcony>лоджия</balcony>
+          <renovation>нет</renovation>
+          <price>5737500</price>
+          <area>37.50</area>
+          <kitchen_area>10.90</kitchen_area>
+          <living_area>18.00</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>совмещенный</bathroom>
+          <plan>https://omut.ndv.ru/file/72D45299-864F-4445-B951-9EE07BF75460/k1-s1-et3-4.png</plan>
+          <housing_type>0</housing_type>
+          <ready_housing>0</ready_housing>
+          <description><![CDATA[Продаётся 1-комнатная квартира в строящемся доме (Корпус 1), срок сдачи: 3-кв. 2026, общей площадью 37.50 кв.м., на 13 этаже. ЖК «Красная горка» - современный 17-этажный жилой комп]]></description>
+        </flat>
+        <flat>
+          <flat_id>6325690</flat_id>
+          <euro_plan>0</euro_plan>
+          <apartment>124</apartment>
+          <floor>17</floor>
+          <room>1</room>
+          <balcony>лоджия</balcony>
+          <renovation>нет</renovation>
+          <price>5737500</price>
+          <area>37.50</area>
+          <kitchen_area>10.90</kitchen_area>
+          <living_area>18.00</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>совмещенный</bathroom>
+          <plan>https://omut.ndv.ru/file/72D45299-864F-4445-B951-9EE07BF75460/k1-s1-et3-4.png</plan>
+          <housing_type>0</housing_type>
+          <ready_housing>0</ready_housing>
+          <description><![CDATA[Продаётся 1-комнатная квартира в строящемся доме (Корпус 1), срок сдачи: 3-кв. 2026, общей площадью 37.50 кв.м., на 17 этаже. ЖК «Красная горка» - современный 17-этажный жилой комп]]></description>
+        </flat>
+        <flat>
+          <flat_id>6325695</flat_id>
+          <euro_plan>0</euro_plan>
+          <apartment>295</apartment>
+          <floor>6</floor>
+          <room>1</room>
+          <balcony>лоджия</balcony>
+          <renovation>нет</renovation>
+          <price>5768100</price>
+          <area>37.70</area>
+          <kitchen_area>9.70</kitchen_area>
+          <living_area>18.70</living_area>
+          <window_view>во двор</window_view>
+          <bathroom>совмещенный</bathroom>
+          <plan>https://omut.ndv.ru/file/B2A0B2C0-0C24-4F0D-A03A-97C0CA3B64AA/k1-s3-et3-3.png</plan>
+          <housing_type>0</housing_type>
+          <ready_housing>0</ready_housing>
+          <description><![CDATA[Продаётся 1-комнатная квартира в строящемся доме (Корпус 1), срок сдачи: 3-кв. 2026, общей площадью 37.70 кв.м., на 6 этаже. ЖК «Красная горка» - современный 17-этажный жилой компл]]></description>
+        </flat>
+      </flats>
+    </building>
+  </buildings>
+  <sales_info>
+    <sales_phone>+74951536532</sales_phone>
+  </sales_info>
+  <developer>
+    <id>60724</id>
+    <name>НДВ Супермаркет недвижимости</name>
+    <phone>+74951536532</phone>
+    <site>www.ndv.ru</site>
+    <logo>https://media.novostroy-m.ru/images/static/NDV/logo/logo_ndv_2024.png</logo>
+  </developer>
+</complex>
+</complexes>
