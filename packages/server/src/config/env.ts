@@ -26,6 +26,12 @@ export interface AppEnv {
   sessionSecret: string
   /** Запасной ключ Anthropic; основной хранится в настройках базы. */
   anthropicApiKey: string
+  /**
+   * Домены, с которых виджету разрешено дёргать публичное API чата.
+   * Пустой список означает «с любого» — виджет ставится на чужие сайты,
+   * и заранее их адреса неизвестны. Заполняется, когда сайты известны.
+   */
+  widgetAllowedOrigins: string[]
 }
 
 let dotenvLoaded = false
@@ -55,6 +61,16 @@ function int(source: NodeJS.ProcessEnv, key: string, fallback: number): number {
   return parsed
 }
 
+/** Список через запятую. Пустые элементы и пробелы отбрасываются. */
+function list(source: NodeJS.ProcessEnv, key: string): string[] {
+  const raw = source[key]
+  if (raw === undefined) return []
+  return raw
+    .split(',')
+    .map((item) => item.trim().replace(/\/+$/, ''))
+    .filter((item) => item !== '')
+}
+
 const DEFAULT_DATABASE_URL = 'postgresql://novostroyki:novostroyki@localhost:5433/novostroyki?schema=public'
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
@@ -75,6 +91,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     adminPassword: str(source, 'ADMIN_PASSWORD', 'change-me-please'),
     sessionSecret: str(source, 'SESSION_SECRET', 'change-me-to-a-long-random-string'),
     anthropicApiKey: str(source, 'ANTHROPIC_API_KEY', ''),
+    widgetAllowedOrigins: list(source, 'WIDGET_ALLOWED_ORIGINS'),
   }
 }
 

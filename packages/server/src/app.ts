@@ -7,8 +7,10 @@ import contextPlugin from './plugins/context.js'
 import feedSchedulerPlugin from './plugins/feed-scheduler.js'
 import staticAssets from './plugins/static-assets.js'
 import adminRoutes from './routes/admin/index.js'
+import chatRoutes from './routes/chat.routes.js'
 import healthRoutes from './routes/health.js'
 import rootRoutes from './routes/root.js'
+import type { ModelClient } from './services/dialog/index.js'
 import type { SettingsService } from './services/settings/index.js'
 
 /**
@@ -32,6 +34,8 @@ export interface BuildAppOptions {
   scheduler?: boolean
   /** Дополнительные опции Fastify (например, свой логгер). */
   fastify?: FastifyServerOptions
+  /** Клиент модели для чата. В тестах сюда подставляется мок вместо Anthropic. */
+  modelClient?: ModelClient
 }
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
@@ -58,6 +62,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(rootRoutes)
   await app.register(healthRoutes)
   await app.register(adminRoutes)
+
+  // Публичное API виджета: живёт вне /api/admin, свои CORS-заголовки
+  // и свои ограничения частоты — см. routes/chat.routes.ts.
+  const chatOptions: { modelClient?: ModelClient } = {}
+  if (options.modelClient) chatOptions.modelClient = options.modelClient
+  await app.register(chatRoutes, chatOptions)
 
   if (options.serveStatic !== false) {
     await app.register(staticAssets)
