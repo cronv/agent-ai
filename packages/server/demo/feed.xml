@@ -1,0 +1,1657 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Демонстрационная выгрузка квартир в формате Яндекс.Недвижимости.
+
+  30 лотов в четырёх вымышленных жилых комплексах. Районы, станции метро и
+  порядок цен — настоящие московские: демо должно выглядеть правдоподобно
+  для человека, который каждый день смотрит такие выгрузки.
+
+  {{BASE_URL}} подставляется при раздаче файла (см. routes/demo.routes.ts):
+  ссылки на планировки должны быть абсолютными — карточку виджет рисует
+  на чужом сайте, и относительный путь там ведёт в никуда.
+-->
+<realty-feed xmlns="http://webmaster.yandex.ru/schemas/feed/realty/2010-06">
+  <generation-date>2026-07-27T09:00:00+03:00</generation-date>
+
+  <!-- ЖК «Северный ветер» · Головинский · Водный стадион -->
+
+  <offer internal-id="SV-0101">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/SV-0101</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Головинский</sub-locality-name>
+      <address>Ленинградское шоссе, 25, корп. 3</address>
+      <metro>
+        <name>Водный стадион</name>
+        <time-on-foot>7</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>ГК «Каскад»</organization>
+      <url>https://example.com/novostroyki/zhk/severnyy-veter</url>
+    </sales-agent>
+    <price>
+      <value>7 820 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>24,6</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>17,7</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <rooms>1</rooms>
+    <studio>true</studio>
+    <floor>5</floor>
+    <floors-total>24</floors-total>
+    <building-name>ЖК «Северный ветер»</building-name>
+    <building-section>Корпус 3</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>2</ready-quarter>
+    <renovation>без отделки</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-studio.svg</image>
+  </offer>
+
+  <offer internal-id="SV-0102">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/SV-0102</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Головинский</sub-locality-name>
+      <address>Ленинградское шоссе, 25, корп. 3</address>
+      <metro>
+        <name>Водный стадион</name>
+        <time-on-foot>7</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>ГК «Каскад»</organization>
+      <url>https://example.com/novostroyki/zhk/severnyy-veter</url>
+    </sales-agent>
+    <price>
+      <value>12 380 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>36,4</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>15,3</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>10,2</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>1</rooms>
+    <studio>false</studio>
+    <floor>12</floor>
+    <floors-total>24</floors-total>
+    <building-name>ЖК «Северный ветер»</building-name>
+    <building-section>Корпус 3</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>2</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-1k.svg</image>
+  </offer>
+
+  <offer internal-id="SV-0103">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/SV-0103</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Головинский</sub-locality-name>
+      <address>Ленинградское шоссе, 25, корп. 3</address>
+      <metro>
+        <name>Водный стадион</name>
+        <time-on-foot>7</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>ГК «Каскад»</organization>
+      <url>https://example.com/novostroyki/zhk/severnyy-veter</url>
+    </sales-agent>
+    <price>
+      <value>12 540 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>39,8</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>16,7</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>11,1</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>1</rooms>
+    <studio>false</studio>
+    <floor>3</floor>
+    <floors-total>24</floors-total>
+    <building-name>ЖК «Северный ветер»</building-name>
+    <building-section>Корпус 3</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>2</ready-quarter>
+    <renovation>без отделки</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-1k.svg</image>
+  </offer>
+
+  <offer internal-id="SV-0104">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/SV-0104</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Головинский</sub-locality-name>
+      <address>Ленинградское шоссе, 25, корп. 3</address>
+      <metro>
+        <name>Водный стадион</name>
+        <time-on-foot>7</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>ГК «Каскад»</organization>
+      <url>https://example.com/novostroyki/zhk/severnyy-veter</url>
+    </sales-agent>
+    <price>
+      <value>18 320 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>54,7</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>28,4</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>12</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>2</rooms>
+    <studio>false</studio>
+    <floor>9</floor>
+    <floors-total>24</floors-total>
+    <building-name>ЖК «Северный ветер»</building-name>
+    <building-section>Корпус 3</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>2</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-2k.svg</image>
+  </offer>
+
+  <offer internal-id="SV-0105">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/SV-0105</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Головинский</sub-locality-name>
+      <address>Ленинградское шоссе, 25, корп. 3</address>
+      <metro>
+        <name>Водный стадион</name>
+        <time-on-foot>7</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>ГК «Каскад»</organization>
+      <url>https://example.com/novostroyki/zhk/severnyy-veter</url>
+    </sales-agent>
+    <price>
+      <value>18 770 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>58,3</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>30,3</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>12,8</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>2</rooms>
+    <studio>false</studio>
+    <floor>18</floor>
+    <floors-total>24</floors-total>
+    <building-name>ЖК «Северный ветер»</building-name>
+    <building-section>Корпус 5</building-section>
+    <building-phase>3</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>без отделки</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-2k.svg</image>
+  </offer>
+
+  <offer internal-id="SV-0106">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/SV-0106</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Головинский</sub-locality-name>
+      <address>Ленинградское шоссе, 25, корп. 3</address>
+      <metro>
+        <name>Водный стадион</name>
+        <time-on-foot>7</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>ГК «Каскад»</organization>
+      <url>https://example.com/novostroyki/zhk/severnyy-veter</url>
+    </sales-agent>
+    <price>
+      <value>25 910 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>78,5</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>43,2</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>14,9</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>3</rooms>
+    <studio>false</studio>
+    <floor>7</floor>
+    <floors-total>24</floors-total>
+    <building-name>ЖК «Северный ветер»</building-name>
+    <building-section>Корпус 5</building-section>
+    <building-phase>3</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-3k.svg</image>
+  </offer>
+
+  <offer internal-id="SV-0107">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/SV-0107</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Головинский</sub-locality-name>
+      <address>Ленинградское шоссе, 25, корп. 3</address>
+      <metro>
+        <name>Водный стадион</name>
+        <time-on-foot>7</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>ГК «Каскад»</organization>
+      <url>https://example.com/novostroyki/zhk/severnyy-veter</url>
+    </sales-agent>
+    <price>
+      <value>29 390 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>85,2</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>46,9</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>16,2</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>3</rooms>
+    <studio>false</studio>
+    <floor>21</floor>
+    <floors-total>24</floors-total>
+    <building-name>ЖК «Северный ветер»</building-name>
+    <building-section>Корпус 5</building-section>
+    <building-phase>4</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>предчистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-3k.svg</image>
+  </offer>
+
+  <offer internal-id="SV-0108">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/SV-0108</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Головинский</sub-locality-name>
+      <address>Ленинградское шоссе, 25, корп. 3</address>
+      <metro>
+        <name>Водный стадион</name>
+        <time-on-foot>7</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>ГК «Каскад»</organization>
+      <url>https://example.com/novostroyki/zhk/severnyy-veter</url>
+    </sales-agent>
+    <price>
+      <value>38 480 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>108,4</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>62,9</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>17,3</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>4</rooms>
+    <studio>false</studio>
+    <floor>23</floor>
+    <floors-total>24</floors-total>
+    <building-name>ЖК «Северный ветер»</building-name>
+    <building-section>Корпус 5</building-section>
+    <building-phase>4</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>предчистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-4k.svg</image>
+  </offer>
+
+  <!-- ЖК «Лобачевский парк» · Раменки · Мичуринский проспект -->
+
+  <offer internal-id="LP-2001">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/LP-2001</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Раменки</sub-locality-name>
+      <address>улица Лобачевского, 120</address>
+      <metro>
+        <name>Мичуринский проспект</name>
+        <time-on-foot>8</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Раменки Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/lobachevskiy-park</url>
+    </sales-agent>
+    <price>
+      <value>19 160 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>42,1</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>17,7</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>11,8</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>1</rooms>
+    <studio>false</studio>
+    <floor>4</floor>
+    <floors-total>17</floors-total>
+    <building-name>ЖК «Лобачевский парк»</building-name>
+    <building-section>Корпус 1</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2026</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>без отделки</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-1k.svg</image>
+  </offer>
+
+  <offer internal-id="LP-2002">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/LP-2002</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Раменки</sub-locality-name>
+      <address>улица Лобачевского, 120</address>
+      <metro>
+        <name>Мичуринский проспект</name>
+        <time-on-foot>8</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Раменки Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/lobachevskiy-park</url>
+    </sales-agent>
+    <price>
+      <value>21 060 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>44,8</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>18,8</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>12,5</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>1</rooms>
+    <studio>false</studio>
+    <floor>11</floor>
+    <floors-total>17</floors-total>
+    <building-name>ЖК «Лобачевский парк»</building-name>
+    <building-section>Корпус 1</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2026</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>предчистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-1k.svg</image>
+  </offer>
+
+  <offer internal-id="LP-2003">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/LP-2003</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Раменки</sub-locality-name>
+      <address>улица Лобачевского, 120</address>
+      <metro>
+        <name>Мичуринский проспект</name>
+        <time-on-foot>8</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Раменки Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/lobachevskiy-park</url>
+    </sales-agent>
+    <price>
+      <value>29 060 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>62,5</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>32,5</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>13,8</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>2</rooms>
+    <studio>false</studio>
+    <floor>6</floor>
+    <floors-total>17</floors-total>
+    <building-name>ЖК «Лобачевский парк»</building-name>
+    <building-section>Корпус 1</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2026</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>предчистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-2k.svg</image>
+  </offer>
+
+  <offer internal-id="LP-2004">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/LP-2004</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Раменки</sub-locality-name>
+      <address>улица Лобачевского, 120</address>
+      <metro>
+        <name>Мичуринский проспект</name>
+        <time-on-foot>8</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Раменки Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/lobachevskiy-park</url>
+    </sales-agent>
+    <price>
+      <value>33 120 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>66,9</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>34,8</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>14,7</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>2</rooms>
+    <studio>false</studio>
+    <floor>14</floor>
+    <floors-total>17</floors-total>
+    <building-name>ЖК «Лобачевский парк»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2026</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>дизайнерская</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-2k.svg</image>
+  </offer>
+
+  <offer internal-id="LP-2005">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/LP-2005</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Раменки</sub-locality-name>
+      <address>улица Лобачевского, 120</address>
+      <metro>
+        <name>Мичуринский проспект</name>
+        <time-on-foot>8</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Раменки Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/lobachevskiy-park</url>
+    </sales-agent>
+    <price>
+      <value>42 380 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>88,3</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>48,6</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>16,8</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>3</rooms>
+    <studio>false</studio>
+    <floor>9</floor>
+    <floors-total>17</floors-total>
+    <building-name>ЖК «Лобачевский парк»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2026</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>предчистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-3k.svg</image>
+  </offer>
+
+  <offer internal-id="LP-2006">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/LP-2006</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Раменки</sub-locality-name>
+      <address>улица Лобачевского, 120</address>
+      <metro>
+        <name>Мичуринский проспект</name>
+        <time-on-foot>8</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Раменки Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/lobachevskiy-park</url>
+    </sales-agent>
+    <price>
+      <value>49 190 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>94,6</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>52</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>18</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>3</rooms>
+    <studio>false</studio>
+    <floor>16</floor>
+    <floors-total>17</floors-total>
+    <building-name>ЖК «Лобачевский парк»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2026</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>дизайнерская</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-3k.svg</image>
+  </offer>
+
+  <offer internal-id="LP-2007">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/LP-2007</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Раменки</sub-locality-name>
+      <address>улица Лобачевского, 120</address>
+      <metro>
+        <name>Мичуринский проспект</name>
+        <time-on-foot>8</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Раменки Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/lobachevskiy-park</url>
+    </sales-agent>
+    <price>
+      <value>59 690 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>118,2</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>68,6</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>18,9</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>4</rooms>
+    <studio>false</studio>
+    <floor>17</floor>
+    <floors-total>17</floors-total>
+    <building-name>ЖК «Лобачевский парк»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2026</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>без отделки</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-4k.svg</image>
+  </offer>
+
+  <!-- ЖК «Преображенский двор» · Преображенское · Преображенская площадь -->
+
+  <offer internal-id="PD-3001">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/PD-3001</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Преображенское</sub-locality-name>
+      <address>улица Буженинова, 14</address>
+      <metro>
+        <name>Преображенская площадь</name>
+        <time-on-foot>5</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Восток Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/preobrazhenskiy-dvor</url>
+    </sales-agent>
+    <price>
+      <value>10 510 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>27,3</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>19,7</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <rooms>1</rooms>
+    <studio>true</studio>
+    <floor>2</floor>
+    <floors-total>14</floors-total>
+    <building-name>ЖК «Преображенский двор»</building-name>
+    <building-section>Корпус 1</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>3</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-studio.svg</image>
+  </offer>
+
+  <offer internal-id="PD-3002">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/PD-3002</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Преображенское</sub-locality-name>
+      <address>улица Буженинова, 14</address>
+      <metro>
+        <name>Преображенская площадь</name>
+        <time-on-foot>5</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Восток Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/preobrazhenskiy-dvor</url>
+    </sales-agent>
+    <price>
+      <value>14 670 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>38,6</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>16,2</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>10,8</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>1</rooms>
+    <studio>false</studio>
+    <floor>6</floor>
+    <floors-total>14</floors-total>
+    <building-name>ЖК «Преображенский двор»</building-name>
+    <building-section>Корпус 1</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>3</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-1k.svg</image>
+  </offer>
+
+  <offer internal-id="PD-3003">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/PD-3003</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Преображенское</sub-locality-name>
+      <address>улица Буженинова, 14</address>
+      <metro>
+        <name>Преображенская площадь</name>
+        <time-on-foot>5</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Восток Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/preobrazhenskiy-dvor</url>
+    </sales-agent>
+    <price>
+      <value>14 910 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>41,2</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>17,3</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>11,5</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>1</rooms>
+    <studio>false</studio>
+    <floor>10</floor>
+    <floors-total>14</floors-total>
+    <building-name>ЖК «Преображенский двор»</building-name>
+    <building-section>Корпус 1</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>3</ready-quarter>
+    <renovation>без отделки</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-1k.svg</image>
+  </offer>
+
+  <offer internal-id="PD-3004">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/PD-3004</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Преображенское</sub-locality-name>
+      <address>улица Буженинова, 14</address>
+      <metro>
+        <name>Преображенская площадь</name>
+        <time-on-foot>5</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Восток Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/preobrazhenskiy-dvor</url>
+    </sales-agent>
+    <price>
+      <value>21 150 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>56,4</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>29,3</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>12,4</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>2</rooms>
+    <studio>false</studio>
+    <floor>4</floor>
+    <floors-total>14</floors-total>
+    <building-name>ЖК «Преображенский двор»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>3</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-2k.svg</image>
+  </offer>
+
+  <offer internal-id="PD-3005">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/PD-3005</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Преображенское</sub-locality-name>
+      <address>улица Буженинова, 14</address>
+      <metro>
+        <name>Преображенская площадь</name>
+        <time-on-foot>5</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Восток Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/preobrazhenskiy-dvor</url>
+    </sales-agent>
+    <price>
+      <value>21 770 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>60,8</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>31,6</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>13,4</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>2</rooms>
+    <studio>false</studio>
+    <floor>12</floor>
+    <floors-total>14</floors-total>
+    <building-name>ЖК «Преображенский двор»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>3</ready-quarter>
+    <renovation>без отделки</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-2k.svg</image>
+  </offer>
+
+  <offer internal-id="PD-3006">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/PD-3006</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Преображенское</sub-locality-name>
+      <address>улица Буженинова, 14</address>
+      <metro>
+        <name>Преображенская площадь</name>
+        <time-on-foot>5</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Восток Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/preobrazhenskiy-dvor</url>
+    </sales-agent>
+    <price>
+      <value>29 720 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>79,9</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>43,9</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>15,2</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>3</rooms>
+    <studio>false</studio>
+    <floor>8</floor>
+    <floors-total>14</floors-total>
+    <building-name>ЖК «Преображенский двор»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>3</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-3k.svg</image>
+  </offer>
+
+  <offer internal-id="PD-3007">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/PD-3007</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Преображенское</sub-locality-name>
+      <address>улица Буженинова, 14</address>
+      <metro>
+        <name>Преображенская площадь</name>
+        <time-on-foot>5</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Восток Девелопмент</organization>
+      <url>https://example.com/novostroyki/zhk/preobrazhenskiy-dvor</url>
+    </sales-agent>
+    <price>
+      <value>33 740 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>86,5</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>47,6</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>16,4</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>3</rooms>
+    <studio>false</studio>
+    <floor>14</floor>
+    <floors-total>14</floors-total>
+    <building-name>ЖК «Преображенский двор»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>3</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-3k.svg</image>
+  </offer>
+
+  <!-- ЖК «Некрасовка парк» · Некрасовка · Некрасовка -->
+
+  <offer internal-id="NP-4001">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/NP-4001</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Некрасовка</sub-locality-name>
+      <address>Рождественская улица, 33</address>
+      <metro>
+        <name>Некрасовка</name>
+        <time-on-foot>11</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Юго-Восток Строй</organization>
+      <url>https://example.com/novostroyki/zhk/nekrasovka-park</url>
+    </sales-agent>
+    <price>
+      <value>5 290 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>22,8</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>16,4</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <rooms>1</rooms>
+    <studio>true</studio>
+    <floor>3</floor>
+    <floors-total>22</floors-total>
+    <building-name>ЖК «Некрасовка парк»</building-name>
+    <building-section>Корпус 1</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>без отделки</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-studio.svg</image>
+  </offer>
+
+  <offer internal-id="NP-4002">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/NP-4002</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Некрасовка</sub-locality-name>
+      <address>Рождественская улица, 33</address>
+      <metro>
+        <name>Некрасовка</name>
+        <time-on-foot>11</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Юго-Восток Строй</organization>
+      <url>https://example.com/novostroyki/zhk/nekrasovka-park</url>
+    </sales-agent>
+    <price>
+      <value>6 530 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>25,9</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>18,6</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <rooms>1</rooms>
+    <studio>true</studio>
+    <floor>15</floor>
+    <floors-total>22</floors-total>
+    <building-name>ЖК «Некрасовка парк»</building-name>
+    <building-section>Корпус 1</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-studio.svg</image>
+  </offer>
+
+  <offer internal-id="NP-4003">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/NP-4003</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Некрасовка</sub-locality-name>
+      <address>Рождественская улица, 33</address>
+      <metro>
+        <name>Некрасовка</name>
+        <time-on-foot>11</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Юго-Восток Строй</organization>
+      <url>https://example.com/novostroyki/zhk/nekrasovka-park</url>
+    </sales-agent>
+    <price>
+      <value>8 360 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>33,7</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>14,2</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>9,4</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>1</rooms>
+    <studio>false</studio>
+    <floor>7</floor>
+    <floors-total>22</floors-total>
+    <building-name>ЖК «Некрасовка парк»</building-name>
+    <building-section>Корпус 1</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2027</built-year>
+    <ready-quarter>4</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-1k.svg</image>
+  </offer>
+
+  <offer internal-id="NP-4004">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/NP-4004</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Некрасовка</sub-locality-name>
+      <address>Рождественская улица, 33</address>
+      <metro>
+        <name>Некрасовка</name>
+        <time-on-foot>11</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Юго-Восток Строй</organization>
+      <url>https://example.com/novostroyki/zhk/nekrasovka-park</url>
+    </sales-agent>
+    <price>
+      <value>8 930 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>37,5</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>15,8</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>10,5</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>1</rooms>
+    <studio>false</studio>
+    <floor>19</floor>
+    <floors-total>22</floors-total>
+    <building-name>ЖК «Некрасовка парк»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2028</built-year>
+    <ready-quarter>2</ready-quarter>
+    <renovation>без отделки</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-1k.svg</image>
+  </offer>
+
+  <offer internal-id="NP-4005">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/NP-4005</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Некрасовка</sub-locality-name>
+      <address>Рождественская улица, 33</address>
+      <metro>
+        <name>Некрасовка</name>
+        <time-on-foot>11</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Юго-Восток Строй</organization>
+      <url>https://example.com/novostroyki/zhk/nekrasovka-park</url>
+    </sales-agent>
+    <price>
+      <value>12 840 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>52,4</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>27,2</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>11,5</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>2</rooms>
+    <studio>false</studio>
+    <floor>5</floor>
+    <floors-total>22</floors-total>
+    <building-name>ЖК «Некрасовка парк»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>1</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2028</built-year>
+    <ready-quarter>2</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-2k.svg</image>
+  </offer>
+
+  <offer internal-id="NP-4006">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/NP-4006</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Некрасовка</sub-locality-name>
+      <address>Рождественская улица, 33</address>
+      <metro>
+        <name>Некрасовка</name>
+        <time-on-foot>11</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Юго-Восток Строй</organization>
+      <url>https://example.com/novostroyki/zhk/nekrasovka-park</url>
+    </sales-agent>
+    <price>
+      <value>13 480 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>57,1</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>29,7</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>12,6</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>2</rooms>
+    <studio>false</studio>
+    <floor>12</floor>
+    <floors-total>22</floors-total>
+    <building-name>ЖК «Некрасовка парк»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2028</built-year>
+    <ready-quarter>2</ready-quarter>
+    <renovation>без отделки</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-2k.svg</image>
+  </offer>
+
+  <offer internal-id="NP-4007">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/NP-4007</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Некрасовка</sub-locality-name>
+      <address>Рождественская улица, 33</address>
+      <metro>
+        <name>Некрасовка</name>
+        <time-on-foot>11</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Юго-Восток Строй</organization>
+      <url>https://example.com/novostroyki/zhk/nekrasovka-park</url>
+    </sales-agent>
+    <price>
+      <value>17 980 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>74,3</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>40,9</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>14,1</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>3</rooms>
+    <studio>false</studio>
+    <floor>9</floor>
+    <floors-total>22</floors-total>
+    <building-name>ЖК «Некрасовка парк»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>2</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2028</built-year>
+    <ready-quarter>2</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-3k.svg</image>
+  </offer>
+
+  <offer internal-id="NP-4008">
+    <type>продажа</type>
+    <property-type>жилая</property-type>
+    <category>квартира</category>
+    <url>https://example.com/novostroyki/flats/NP-4008</url>
+    <location>
+      <country>Россия</country>
+      <region>Москва</region>
+      <locality-name>Москва</locality-name>
+      <sub-locality-name>Некрасовка</sub-locality-name>
+      <address>Рождественская улица, 33</address>
+      <metro>
+        <name>Некрасовка</name>
+        <time-on-foot>11</time-on-foot>
+      </metro>
+    </location>
+    <sales-agent>
+      <category>developer</category>
+      <organization>Юго-Восток Строй</organization>
+      <url>https://example.com/novostroyki/zhk/nekrasovka-park</url>
+    </sales-agent>
+    <price>
+      <value>20 400 000</value>
+      <currency>RUR</currency>
+    </price>
+    <mortgage>да</mortgage>
+    <area>
+      <value>81,6</value>
+      <unit>кв. м</unit>
+    </area>
+    <living-space>
+      <value>44,9</value>
+      <unit>кв. м</unit>
+    </living-space>
+    <kitchen-space>
+      <value>15,5</value>
+      <unit>кв. м</unit>
+    </kitchen-space>
+    <rooms>3</rooms>
+    <studio>false</studio>
+    <floor>21</floor>
+    <floors-total>22</floors-total>
+    <building-name>ЖК «Некрасовка парк»</building-name>
+    <building-section>Корпус 2</building-section>
+    <building-phase>3</building-phase>
+    <building-state>unfinished</building-state>
+    <building-type>монолитный</building-type>
+    <built-year>2028</built-year>
+    <ready-quarter>2</ready-quarter>
+    <renovation>чистовая</renovation>
+    <deal-status>первичная продажа</deal-status>
+    <new-flat>да</new-flat>
+    <image>{{BASE_URL}}/demo/plans/plan-3k.svg</image>
+  </offer>
+</realty-feed>

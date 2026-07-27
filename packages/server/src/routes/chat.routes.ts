@@ -2,7 +2,7 @@ import type { ServerResponse } from 'node:http'
 
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify'
 
-import { env } from '../config/env.js'
+import { corsHeaders } from '../plugins/public-cors.js'
 import { RateLimiter, retryAfterSeconds } from '../services/chat/index.js'
 import {
   DialogEngine,
@@ -36,20 +36,12 @@ import {
  *   4. `sessionId` обязан выглядеть как случайный идентификатор: он же
  *      служит ключом к истории переписки.
  *
- * ── Почему CORS устроен именно так ─────────────────────────────────────────
+ * ── Где живёт CORS ─────────────────────────────────────────────────────────
  *
- * Заголовки CORS выставляются только на маршруты этого файла — плагин
- * зарегистрирован без `fastify-plugin`, поэтому его хук не виден снаружи.
- * Админка так и остаётся недоступной для запросов с чужих сайтов.
- *
- * `Access-Control-Allow-Credentials` не выставляется никогда. Вместе с
- * `Allow-Origin: *` это ровно то, что нужно: браузер не пошлёт сюда куку
- * админки и не даст чужому скрипту прочитать ответ, сделанный от имени
- * администратора. Диалог опознаётся по `sessionId` в теле запроса, кука ему
- * не нужна.
- *
- * Если сайты, на которых стоит виджет, известны, их перечисляют в
- * `WIDGET_ALLOWED_ORIGINS` — тогда список работает как белый.
+ * Не здесь. Заголовки и предполётные запросы — общие для всего публичного API
+ * (чат, конфиг виджета, форма контакта) и вынесены в `plugins/public-cors.ts`.
+ * Плагин регистрируется в области публичных маршрутов, поэтому до `/api/admin/*`
+ * его правила по-прежнему не доходят.
  */
 
 /**
@@ -220,29 +212,6 @@ function writeSse(raw: ServerResponse, name: string, data: unknown): void {
   raw.write(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`)
 }
 
-// ── CORS ─────────────────────────────────────────────────────
-
-/**
- * Какой Origin разрешить. Пустой белый список означает «любой»:
- * виджет ставится на сайты, адреса которых заранее неизвестны.
- */
-function allowedOrigin(request: FastifyRequest): string | null {
-  const allowList = env.widgetAllowedOrigins
-  if (allowList.length === 0) return '*'
-  const origin = request.headers.origin
-  if (typeof origin !== 'string' || origin === '') return null
-  return allowList.includes(origin.replace(/\/+$/, '')) ? origin : null
-}
-
-function corsHeaders(request: FastifyRequest): Record<string, string> {
-  const origin = allowedOrigin(request)
-  if (origin === null) return {}
-  const headers: Record<string, string> = { 'access-control-allow-origin': origin }
-  // Ответ зависит от Origin — кэшу об этом нужно сказать.
-  if (origin !== '*') headers['vary'] = 'Origin'
-  return headers
-}
-
 // ── Маршруты ─────────────────────────────────────────────────
 
 const chatRoutes: FastifyPluginAsync<ChatRoutesOptions> = async (app, options) => {
@@ -255,31 +224,6 @@ const chatRoutes: FastifyPluginAsync<ChatRoutesOptions> = async (app, options) =
       ...(options.modelClient ? { client: options.modelClient } : {}),
       ...(options.saveLead ? { saveLead: options.saveLead } : {}),
     })
-
-  // Хук виден только маршрутам этого плагина: он зарегистрирован без
-  // fastify-plugin, значит инкапсуляция Fastify его отсюда не выпустит.
-  app.addHook('onRequest', async (request, reply) => {
-    for (const [name, value] of Object.entries(corsHeaders(request))) {
-      void reply.header(name, value)
-    }
-  })
-
-  /** Предполётный запрос браузера. Тело application/json его всегда вызывает. */
-  const preflight = async (request: FastifyRequest, reply: FastifyReply): Promise<FastifyReply> => {
-    if (allowedOrigin(request) === null) {
-      return reply.code(403).send({ error: 'origin_not_allowed', message: 'Этот домен не в списке разрешённых' })
-    }
-    return reply
-      .header('access-control-allow-methods', 'GET, POST, OPTIONS')
-      .header('access-control-allow-headers', 'content-type')
-      .header('access-control-max-age', '86400')
-      .code(204)
-      .send()
-  }
-
-  app.options('/api/chat', preflight)
-  app.options('/api/chat/:sessionId', preflight)
-  app.options('/api/widget/config', preflight)
 
   // ── Публичные настройки виджета ────────────────────────────
 

@@ -6,9 +6,11 @@ import authPlugin from './plugins/auth.js'
 import contextPlugin from './plugins/context.js'
 import feedSchedulerPlugin from './plugins/feed-scheduler.js'
 import leadsPlugin, { type LeadsPluginOptions } from './plugins/leads.js'
+import publicCorsPlugin from './plugins/public-cors.js'
 import staticAssets from './plugins/static-assets.js'
 import adminRoutes from './routes/admin/index.js'
 import chatRoutes from './routes/chat.routes.js'
+import demoRoutes from './routes/demo.routes.js'
 import healthRoutes from './routes/health.js'
 import leadRoutes from './routes/lead.routes.js'
 import rootRoutes from './routes/root.js'
@@ -71,17 +73,25 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(healthRoutes)
   await app.register(adminRoutes)
 
-  // Публичное API виджета: живёт вне /api/admin, свои CORS-заголовки
-  // и свои ограничения частоты — см. routes/chat.routes.ts.
+  // Демонстрационный комплект: выгрузка квартир и планировки-заглушки.
+  // Импорт умеет ходить только по http(s), поэтому демо-фид сервер раздаёт сам.
+  await app.register(demoRoutes)
+
+  // Публичное API виджета: чат, конфиг и форма контакта. Живёт вне /api/admin
+  // и целиком кросс-доменное — виджет стоит на чужом сайте. Отдельная область
+  // регистрации нужна ровно для этого: `publicCors` вешает свой хук на неё, и
+  // правила достаются всем публичным маршрутам сразу, но не админке.
   const chatOptions: { modelClient?: ModelClient; saveLead?: LeadHandler } = {}
   if (options.modelClient) chatOptions.modelClient = options.modelClient
   // Контакт, сохранённый инструментом модели, проходит те же нормализацию,
   // поиск дубля и вебхук, что и контакт из формы.
   chatOptions.saveLead = app.leads.captureFromDialog
-  await app.register(chatRoutes, chatOptions)
 
-  // Форма контакта в виджете. Публичный маршрут, вне /api/admin.
-  await app.register(leadRoutes)
+  await app.register(async (publicApi) => {
+    await publicApi.register(publicCorsPlugin)
+    await publicApi.register(chatRoutes, chatOptions)
+    await publicApi.register(leadRoutes)
+  })
 
   if (options.serveStatic !== false) {
     await app.register(staticAssets)

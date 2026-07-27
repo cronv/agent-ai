@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300" role="img" aria-label="Планировка однокомнатной квартиры">
+  <style>
+    .wall { fill: none; stroke: #1B2028; stroke-width: 7; }
+    .part { fill: none; stroke: #1B2028; stroke-width: 4; }
+    .room { fill: #F3F5F8; }
+    .name { font: 500 12px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #2B313B; }
+    .door { fill: none; stroke: #F3F5F8; stroke-width: 6; }
+    .mark { font: 400 10px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #9AA1AC; }
+  </style>
+  <rect x="20" y="20" width="360" height="260" class="room" />
+  <rect x="20" y="20" width="360" height="260" class="wall" />
+
+  <path class="part" d="M210 20 V280 M20 170 H210 M110 170 V280" />
+  <path class="door" d="M210 110 v40 M148 170 h40 M110 218 v34" />
+
+  <text class="name" x="234" y="150">Комната</text>
+
+  <text class="name" x="44" y="100">Кухня</text>
+
+  <text class="name" x="36" y="230">Прихожая</text>
+  <text class="name" x="134" y="230">С/у</text>
+
+  <text class="mark" x="24" y="294">Планировка показана схематично</text>
+</svg>

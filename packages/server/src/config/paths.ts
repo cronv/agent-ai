@@ -34,3 +34,10 @@ export const adminDistDir: string = join(repoRoot, 'packages', 'admin', 'dist')
 
 /** Файл собранного виджета. */
 export const widgetBundleFile: string = join(repoRoot, 'packages', 'widget', 'dist', 'widget.js')
+
+/**
+ * Каталог демонстрационных данных: выгрузка квартир, планировки-заглушки и
+ * документ базы знаний. Лежит внутри пакета server и раздаётся им же —
+ * благодаря этому засев и импорт работают без интернета.
+ */
+export const demoDir: string = join(serverRoot, 'demo')

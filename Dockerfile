@@ -32,6 +32,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/server/package.json ./packages/server/package.json
 COPY --from=build /app/packages/server/dist ./packages/server/dist
 COPY --from=build /app/packages/server/prisma ./packages/server/prisma
+# Демо-комплект: выгрузка на 30 квартир, планировки, документ базы знаний.
+# Сервер раздаёт их сам — импорт работает без интернета.
+COPY --from=build /app/packages/server/demo ./packages/server/demo
 COPY --from=build /app/packages/admin/package.json ./packages/admin/package.json
 COPY --from=build /app/packages/admin/dist ./packages/admin/dist
 COPY --from=build /app/packages/widget/package.json ./packages/widget/package.json

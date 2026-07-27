@@ -27,6 +27,12 @@ export interface AppEnv {
   /** Запасной ключ Anthropic; основной хранится в настройках базы. */
   anthropicApiKey: string
   /**
+   * Засевать ли демонстрационные данные. Срабатывает один раз — на самом
+   * первом старте новой базы; см. `index.ts`. Удалённое демо обратно не
+   * возвращается.
+   */
+  seedDemoData: boolean
+  /**
    * Домены, с которых виджету разрешено дёргать публичное API чата.
    * Пустой список означает «с любого» — виджет ставится на чужие сайты,
    * и заранее их адреса неизвестны. Заполняется, когда сайты известны.
@@ -61,6 +67,15 @@ function int(source: NodeJS.ProcessEnv, key: string, fallback: number): number {
   return parsed
 }
 
+/** Да/нет из переменной окружения. Непонятное значение — как не заданное. */
+function bool(source: NodeJS.ProcessEnv, key: string, fallback: boolean): boolean {
+  const raw = source[key]?.trim().toLowerCase()
+  if (raw === undefined || raw === '') return fallback
+  if (['1', 'true', 'yes', 'on', 'да'].includes(raw)) return true
+  if (['0', 'false', 'no', 'off', 'нет'].includes(raw)) return false
+  return fallback
+}
+
 /** Список через запятую. Пустые элементы и пробелы отбрасываются. */
 function list(source: NodeJS.ProcessEnv, key: string): string[] {
   const raw = source[key]
@@ -91,6 +106,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     adminPassword: str(source, 'ADMIN_PASSWORD', 'change-me-please'),
     sessionSecret: str(source, 'SESSION_SECRET', 'change-me-to-a-long-random-string'),
     anthropicApiKey: str(source, 'ANTHROPIC_API_KEY', ''),
+    seedDemoData: bool(source, 'SEED_DEMO_DATA', nodeEnv !== 'test'),
     widgetAllowedOrigins: list(source, 'WIDGET_ALLOWED_ORIGINS'),
   }
 }

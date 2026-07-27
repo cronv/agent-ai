@@ -64,6 +64,7 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-please}
       SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-string}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-on}
     env_file:
       - path: .env
         required: false

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300" role="img" aria-label="Планировка студии">
+  <style>
+    .wall { fill: none; stroke: #1B2028; stroke-width: 7; }
+    .part { fill: none; stroke: #1B2028; stroke-width: 4; }
+    .room { fill: #F3F5F8; }
+    .name { font: 500 12px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #2B313B; }
+    .door { fill: none; stroke: #F3F5F8; stroke-width: 6; }
+    .mark { font: 400 10px -apple-system, "Segoe UI", Roboto, sans-serif; fill: #9AA1AC; }
+  </style>
+  <rect x="20" y="20" width="360" height="260" class="room" />
+  <rect x="20" y="20" width="360" height="260" class="wall" />
+
+  <path class="part" d="M20 200 H150 M150 200 V280 M150 130 H20" />
+  <path class="door" d="M92 200 h40 M150 236 v30 M20 156 v-16" />
+
+  <text class="name" x="196" y="112">Жилая зона</text>
+  <text class="name" x="196" y="196">с кухней-нишей</text>
+
+  <text class="name" x="40" y="164">Прихожая</text>
+  <text class="name" x="40" y="248">С/у</text>
+
+  <text class="mark" x="24" y="294">Планировка показана схематично</text>
+</svg>

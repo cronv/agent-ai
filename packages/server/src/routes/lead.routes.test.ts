@@ -118,6 +118,69 @@ describe('POST /api/lead', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
+  // ── Кросс-доменная отправка ──────────────────────────────
+  //
+  // Виджет стоит на чужом сайте, тело у формы — application/json, значит
+  // браузер всегда шлёт предполётный OPTIONS и без правильного ответа на него
+  // контакт не уйдёт вовсе. На демо-стенде и при установке на тот же домен
+  // это незаметно, поэтому проверяется отдельно.
+
+  it('отвечает на предполётный запрос браузера с чужого домена', async () => {
+    const preflight = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/lead',
+      headers: {
+        origin: 'https://novostroyki.example',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
+      },
+    })
+
+    expect(preflight.statusCode).toBe(204)
+    expect(preflight.headers['access-control-allow-origin']).toBe('*')
+    expect(preflight.headers['access-control-allow-methods']).toContain('POST')
+    expect(preflight.headers['access-control-allow-headers']).toBe('content-type')
+    // Кука админки в кросс-доменный запрос попасть не должна ни при каких условиях.
+    expect(preflight.headers['access-control-allow-credentials']).toBeUndefined()
+  })
+
+  it('сохраняет контакт, отправленный с чужого домена, и отдаёт заголовки CORS', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lead',
+      headers: { origin: 'https://novostroyki.example', 'content-type': 'application/json' },
+      payload: { sessionId: 's1', name: 'Иван', phone: '+79123456789', consent: true },
+    })
+
+    expect(response.statusCode).toBe(201)
+    expect(response.headers['access-control-allow-origin']).toBe('*')
+    expect(response.headers['access-control-allow-credentials']).toBeUndefined()
+    expect(await testDb.lead.count()).toBe(1)
+  })
+
+  it('ошибку формы браузер тоже сможет прочитать — заголовки стоят и на 400', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/lead',
+      headers: { origin: 'https://novostroyki.example', 'content-type': 'application/json' },
+      payload: { sessionId: 's1', name: 'Иван', phone: '12345', consent: true },
+    })
+
+    expect(response.statusCode).toBe(400)
+    expect(response.headers['access-control-allow-origin']).toBe('*')
+  })
+
+  it('на админку эти правила не распространяются', async () => {
+    const preflight = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/admin/leads',
+      headers: { origin: 'https://evil.example', 'access-control-request-method': 'GET' },
+    })
+
+    expect(preflight.headers['access-control-allow-origin']).toBeUndefined()
+    expect(preflight.statusCode).not.toBe(204)
+  })
+
   it('падение вебхука не мешает ответу и сохранению', async () => {
     await settings.set('lead_webhook_url', 'https://hook.example/amo')
     fetchImpl.mockRejectedValue(new Error('сеть недоступна'))
