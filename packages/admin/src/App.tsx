@@ -11,6 +11,7 @@ import { KnowledgePage } from './pages/KnowledgePage.js'
 import { LeadsPage } from './pages/LeadsPage.js'
 import { LoginPage } from './pages/LoginPage.js'
 import { NotFoundPage } from './pages/NotFoundPage.js'
+import { ProjectPage } from './pages/ProjectPage.js'
 import { ProjectsPage } from './pages/ProjectsPage.js'
 import { SettingsPage } from './pages/SettingsPage.js'
 
@@ -35,6 +36,7 @@ export function App(): ReactElement {
             <Route element={<AdminLayout />}>
               <Route index element={<DashboardPage />} />
               <Route path="projects" element={<ProjectsPage />} />
+              <Route path="projects/:id" element={<ProjectPage />} />
               <Route path="feeds" element={<FeedsPage />} />
               <Route path="knowledge" element={<KnowledgePage />} />
               <Route path="conversations" element={<ConversationsPage />} />
