@@ -213,6 +213,71 @@ export function IconEye(props: IconProps): ReactElement {
   )
 }
 
+export function IconPlus(props: IconProps): ReactElement {
+  return (
+    <Glyph {...props}>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </Glyph>
+  )
+}
+
+export function IconPencil(props: IconProps): ReactElement {
+  return (
+    <Glyph {...props}>
+      <path d="M4 20h4l10.5-10.5a2.83 2.83 0 0 0-4-4L4 16z" />
+      <path d="m14.5 5.5 4 4" />
+    </Glyph>
+  )
+}
+
+export function IconTrash(props: IconProps): ReactElement {
+  return (
+    <Glyph {...props}>
+      <path d="M4 7h16" />
+      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      <path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </Glyph>
+  )
+}
+
+export function IconSearch(props: IconProps): ReactElement {
+  return (
+    <Glyph {...props}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </Glyph>
+  )
+}
+
+export function IconChevronLeft(props: IconProps): ReactElement {
+  return (
+    <Glyph {...props}>
+      <path d="m15 5-7 7 7 7" />
+    </Glyph>
+  )
+}
+
+export function IconChevronRight(props: IconProps): ReactElement {
+  return (
+    <Glyph {...props}>
+      <path d="m9 5 7 7-7 7" />
+    </Glyph>
+  )
+}
+
+export function IconExternal(props: IconProps): ReactElement {
+  return (
+    <Glyph {...props}>
+      <path d="M14 4h6v6" />
+      <path d="M20 4 10 14" />
+      <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+    </Glyph>
+  )
+}
+
 export function IconEyeOff(props: IconProps): ReactElement {
   return (
     <Glyph {...props}>
@@ -220,6 +285,36 @@ export function IconEyeOff(props: IconProps): ReactElement {
       <path d="M14.08 14.16a3 3 0 0 1-4.24-4.24" />
       <path d="M17.48 17.5a10.75 10.75 0 0 1-15.42-5.15 1 1 0 0 1 0-.7 10.75 10.75 0 0 1 4.45-5.14" />
       <path d="m2 2 20 20" />
+    </Glyph>
+  )
+}
+
+export function IconUpload(props: IconProps): ReactElement {
+  return (
+    <Glyph {...props}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="m8 8 4-4 4 4" />
+      <path d="M12 4v12" />
+    </Glyph>
+  )
+}
+
+export function IconFile(props: IconProps): ReactElement {
+  return (
+    <Glyph {...props}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5" />
+      <path d="M9 13h6" />
+      <path d="M9 17h4" />
+    </Glyph>
+  )
+}
+
+export function IconCopy(props: IconProps): ReactElement {
+  return (
+    <Glyph {...props}>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
     </Glyph>
   )
 }

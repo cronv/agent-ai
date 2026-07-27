@@ -51,12 +51,16 @@ interface RequestOptions {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, signal, silentUnauthorized = false } = options
 
+  // FormData браузер сериализует сам и сам ставит boundary в Content-Type —
+  // трогать заголовок нельзя, иначе загрузка файла ломается.
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData
+
   const init: RequestInit = {
     method,
     credentials: 'same-origin',
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    headers: body === undefined || isForm ? {} : { 'Content-Type': 'application/json' },
   }
-  if (body !== undefined) init.body = JSON.stringify(body)
+  if (body !== undefined) init.body = isForm ? (body as FormData) : JSON.stringify(body)
   if (signal) init.signal = signal
 
   let response: Response
@@ -97,6 +101,9 @@ export const api = {
     request<T>(path, { ...options, method: 'PUT', body }),
   delete: <T>(path: string, options?: RequestOptions): Promise<T> =>
     request<T>(path, { ...options, method: 'DELETE' }),
+  /** Отправка файла: `api.upload('/knowledge', formData)`. */
+  upload: <T>(path: string, form: FormData, options?: RequestOptions): Promise<T> =>
+    request<T>(path, { ...options, method: 'POST', body: form }),
 }
 
 /** Человеческий текст ошибки для показа в интерфейсе. */
