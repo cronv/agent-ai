@@ -1,0 +1,134 @@
+import type { ToolDefinition } from './client.js'
+import { APARTMENT_SEARCH_LIMIT, APARTMENT_SEARCH_MAX_LIMIT } from './apartments.js'
+import { KNOWLEDGE_SEARCH_LIMIT } from '../knowledge/index.js'
+
+/**
+ * Инструменты модели.
+ *
+ * Схемы соответствуют разделу «Инструменты модели (tool use)» в docs/SPEC.md.
+ * Описания написаны предписывающе — «вызови, когда …», а не «возвращает …»:
+ * модель выбирает инструмент по описанию, и от формулировки прямо зависит,
+ * пойдёт она в базу или ответит по памяти. Второе для нас недопустимо.
+ *
+ * Имена параметров — snake_case: так их пишет модель, и так они выглядят
+ * в спецификации. Разбор и приведение типов — в `execute.ts`.
+ */
+
+export const TOOL_NAMES = ['search_apartments', 'list_projects', 'search_knowledge', 'save_lead'] as const
+
+export type ToolName = (typeof TOOL_NAMES)[number]
+
+export function isToolName(name: string): name is ToolName {
+  return (TOOL_NAMES as readonly string[]).includes(name)
+}
+
+const searchApartmentsTool: ToolDefinition = {
+  name: 'search_apartments',
+  description:
+    'Подбор квартир из базы агентства по параметрам. Вызывай всегда, прежде чем назвать посетителю хотя бы одну конкретную квартиру, цену, площадь или этаж, — своих данных о квартирах у тебя нет. ' +
+    'Заполняй только те параметры, которые человек назвал: лишние фильтры сужают выдачу и превращают подборку в «ничего не найдено». ' +
+    `Возвращает сколько всего лотов подошло и первые ${APARTMENT_SEARCH_LIMIT} из них (по возрастанию цены), только активные лоты активных ЖК.`,
+  input_schema: {
+    type: 'object',
+    properties: {
+      rooms: {
+        type: 'array',
+        items: { type: 'integer', minimum: 0, maximum: 10 },
+        description: 'Комнатность, 0 — студия. «Однушка или двушка» — это [1, 2].',
+      },
+      price_min: { type: 'number', description: 'Нижняя граница цены в рублях.' },
+      price_max: { type: 'number', description: 'Верхняя граница цены в рублях. «До 18 млн» — это 18000000.' },
+      area_min: { type: 'number', description: 'Минимальная общая площадь, м².' },
+      area_max: { type: 'number', description: 'Максимальная общая площадь, м².' },
+      floor_min: { type: 'integer', description: 'Минимальный этаж. «Не первый» — это 2.' },
+      floor_max: { type: 'integer', description: 'Максимальный этаж.' },
+      project_ids: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Идентификаторы ЖК из list_projects или из прошлой выдачи. Названия сюда не подходят.',
+      },
+      district: { type: 'string', description: 'Район города, как его назвал человек.' },
+      metro: { type: 'string', description: 'Станция метро.' },
+      deadline_before: {
+        type: 'string',
+        description: 'Ключи не позже этой даты: «2027-06-30», «2027» или «2 кв. 2027».',
+      },
+      finishing: {
+        type: 'string',
+        description: 'Отделка: «чистовая», «без отделки», «предчистовая», «дизайнерская».',
+      },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: APARTMENT_SEARCH_MAX_LIMIT,
+        description: `Сколько квартир вернуть. По умолчанию ${APARTMENT_SEARCH_LIMIT}; больше запрашивай, только если человек прямо просит длинный список.`,
+      },
+    },
+  },
+}
+
+const listProjectsTool: ToolDefinition = {
+  name: 'list_projects',
+  description:
+    'Список жилых комплексов с диапазоном цен и количеством свободных лотов. Вызывай на вопросы вида «какие есть проекты в районе», «что у вас вообще есть», «в каком ЖК дешевле» и когда нужно сравнить комплексы между собой. ' +
+    'ЖК, в которых сейчас нет подходящих лотов, в ответ не попадают. Идентификаторы из ответа передавай в search_apartments через project_ids.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      district: { type: 'string', description: 'Район города.' },
+      metro: { type: 'string', description: 'Станция метро.' },
+      price_min: { type: 'number', description: 'Считать только лоты дороже этой цены, ₽.' },
+      price_max: { type: 'number', description: 'Считать только лоты дешевле этой цены, ₽.' },
+      deadline_before: { type: 'string', description: 'Сдача не позже: «2027-06-30», «2027», «2 кв. 2027».' },
+    },
+  },
+}
+
+const searchKnowledgeTool: ToolDefinition = {
+  name: 'search_knowledge',
+  description:
+    'Поиск по базе знаний: презентации застройщиков, условия ипотеки и рассрочки, варианты отделки, инфраструктура, правила агентства. ' +
+    'Вызывай на любой вопрос, ответа на который нет в карточках квартир: ставки, первоначальный взнос, субсидированные программы, материнский капитал, паркинг, школы, транспорт, этапы сделки. ' +
+    `Возвращает до ${KNOWLEDGE_SEARCH_LIMIT} фрагментов с именем документа и ЖК — ссылайся на них в ответе. Пустой ответ означает, что таких данных нет: так и скажи, не придумывай.`,
+  input_schema: {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description: 'Запрос словами человека, можно с уточнением: «первоначальный взнос по семейной ипотеке».',
+      },
+      project_id: {
+        type: 'string',
+        description: 'Идентификатор ЖК, если вопрос про конкретный комплекс. Общие документы попадут в выдачу в любом случае.',
+      },
+    },
+    required: ['query'],
+  },
+}
+
+const saveLeadTool: ToolDefinition = {
+  name: 'save_lead',
+  description:
+    'Сохранить контакт посетителя, чтобы менеджер перезвонил. Вызывай только после того, как человек сам назвал имя и телефон и явно согласился на звонок. ' +
+    'Никогда не выдумывай и не дополняй данные: имя и телефон бери дословно из его сообщений. Если телефона нет — сначала попроси его в диалоге.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Как зовут посетителя.' },
+      phone: { type: 'string', description: 'Телефон в том виде, в каком его написал человек.' },
+      comment: {
+        type: 'string',
+        description: 'Что искал и на чём остановились — одна-две строки для менеджера перед звонком.',
+      },
+    },
+    required: ['name', 'phone'],
+  },
+}
+
+/** Все инструменты одним списком — именно он уходит в запрос к модели. */
+export const DIALOG_TOOLS: ToolDefinition[] = [
+  searchApartmentsTool,
+  listProjectsTool,
+  searchKnowledgeTool,
+  saveLeadTool,
+]
