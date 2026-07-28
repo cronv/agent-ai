@@ -20,6 +20,9 @@ import type { FeedProfile } from './profiles.js'
  * Склеенный узел целиком уходит в колонку `raw`, поэтому в выжимки попадает
  * только то, что осмысленно хранить у каждого лота: списки фотографий ЖК и
  * расписание отдела продаж остаются за бортом.
+ *
+ * Отдельного поля «район» в формате нет — он вычисляется из адреса и названия
+ * комплекса, см. `districtFromComplex`.
  */
 
 /** Сколько символов описания ЖК переносим в карточку комплекса. */
@@ -52,6 +55,7 @@ export const DOMCLICK_PROFILE: FeedProfile = {
     projectImageUrl: ['_complex.image'],
     projectDescription: ['_complex.description'],
     developer: ['_complex.developer'],
+    district: ['_complex.district'],
     address: ['_complex.address'],
   },
 }
@@ -84,10 +88,14 @@ export function collectDomclickOffers(document: Record<string, unknown>): Record
 
 /** Поля комплекса, которые нужны карточке ЖК и остаются в `raw` у лота. */
 function summarizeComplex(complex: Record<string, unknown>): Record<string, unknown> {
+  const name = normalizeText(complex['name'], 200)
+  const address = normalizeText(complex['address'], 300)
   return compact({
     id: normalizeText(complex['id'], 60),
-    name: normalizeText(complex['name'], 200),
-    address: normalizeText(complex['address'], 300),
+    name,
+    address,
+    // Отдельного тега с районом в формате нет — вычисляем его сами.
+    district: districtFromComplex(name, address),
     latitude: toText(complex['latitude']),
     longitude: toText(complex['longitude']),
     // <developer> — узел с именем, телефоном и логотипом; берём имя.
@@ -111,6 +119,171 @@ function summarizeBuilding(building: Record<string, unknown>): Record<string, un
     building_type: normalizeText(building['building_type'], 120),
     fz_214: toText(building['fz_214']),
   })
+}
+
+// ── Район ───────────────────────────────────────────────────
+
+/**
+ * Район ЖК: ДомКлик не отдаёт его отдельным полем.
+ *
+ *   districtFromComplex('ЖК «Космос» (Домодедово)', 'Домодедовский городской округ. ул. Жуковского, д. 4')
+ *   // → 'Домодедово'
+ *
+ * Есть два источника, и оба неточные. Первый — уточнение в скобках названия:
+ * `ЖК «Восточный» (Звенигород)` стоит в Одинцовском районе, но человек ищет
+ * Звенигород, поэтому скобки важнее адреса. Второй — часть адреса до первой
+ * точки: там лежит административная единица.
+ *
+ * В скобках бывает и не город: `ЖК «Школьный» («Альянс»)` — второе имя
+ * комплекса. Признак простой: настоящий город в кавычки не берут.
+ */
+export function districtFromComplex(name: string | null, address: string | null): string | null {
+  return districtFromName(name) ?? districtFromAddress(address)
+}
+
+/** Уточнение в скобках названия: `ЖК «Космос» (Домодедово)` → `Домодедово`. */
+function districtFromName(name: string | null): string | null {
+  if (name === null) return null
+  const match = /\(([^()]+)\)/.exec(name)
+  if (!match) return null
+  const inner = match[1] ?? ''
+  // Кавычки внутри скобок означают второе название ЖК, а не населённый пункт.
+  if (/[«»"'„“”]/.test(inner)) return null
+  return humanizePlace(inner)
+}
+
+/**
+ * Первая часть адреса — административная единица. Разбираем две первые части:
+ * встречается и `Химки городской округ. ул. …`, и `г.о. Химки. ул. …`.
+ * Дальше начинается улица, и туда лезть незачем.
+ */
+function districtFromAddress(address: string | null): string | null {
+  if (address === null) return null
+  const segments = address.split(/\.(?=\s|$)/, 2)
+  for (const segment of segments) {
+    const place = humanizePlace(segment)
+    if (place !== null) return place
+  }
+  return null
+}
+
+/** Слова административного деления: в речи покупателя их нет. */
+const ADMIN_WORDS = new Set([
+  'городской',
+  'городского',
+  'городская',
+  'городское',
+  'муниципальный',
+  'муниципального',
+  'муниципальное',
+  'сельский',
+  'сельского',
+  'сельское',
+  'поселение',
+  'поселения',
+  'поселок',
+  'посёлок',
+  'округ',
+  'округа',
+  'район',
+  'района',
+  'р-н',
+  'область',
+  'области',
+  'обл',
+  'край',
+  'края',
+  'республика',
+  'республики',
+  'город',
+  'гор',
+  'г',
+  'о',
+  'го',
+  'мо',
+])
+
+/** Слова, после которых начинается адрес, а не название места. */
+const STREET_WORDS = new Set([
+  'ул',
+  'улица',
+  'пер',
+  'переулок',
+  'пр-т',
+  'просп',
+  'проспект',
+  'пр',
+  'ш',
+  'шоссе',
+  'наб',
+  'набережная',
+  'бул',
+  'бульвар',
+  'мкр',
+  'микрорайон',
+  'квартал',
+  'д',
+  'дом',
+  'корп',
+  'корпус',
+  'стр',
+  'влд',
+  'км',
+  'километр',
+  'жк',
+])
+
+/** Сколько слов может быть в названии места. «Наро-Фоминский городской округ» — три. */
+const MAX_PLACE_WORDS = 4
+
+/**
+ * Приводит административное название к тому виду, которым пользуются люди:
+ *
+ *   'Домодедовский городской округ' → 'Домодедово'
+ *   'Химки городской округ'         → 'Химки'
+ *   'Пушкинский район'              → 'Пушкинский'
+ *   'ул. Жуковского, д. 4'          → null
+ *
+ * `null` означает «это не название места»: лучше оставить район пустым,
+ * чем записать в него кусок улицы.
+ */
+export function humanizePlace(value: string): string | null {
+  const text = value.replace(/\s+/g, ' ').trim()
+  if (text === '' || /\d/.test(text)) return null
+
+  const words = text
+    .split(/[\s,]+/)
+    .map((word) => word.replace(/[.«»"'„“”]/g, '').trim())
+    .filter((word) => word !== '')
+
+  if (words.length === 0 || words.length > MAX_PLACE_WORDS) return null
+  if (words.some((word) => STREET_WORDS.has(word.toLowerCase()))) return null
+
+  const kept = words.filter((word) => !ADMIN_WORDS.has(word.toLowerCase()))
+  if (kept.length === 0) return null
+
+  // Прилагательное превращаем в название города, только когда слово одно:
+  // «Домодедовский» — это Домодедово, а в «Старый Оскол» ничего менять не надо.
+  const named = kept.length === 1 ? cityFromAdjective(kept[0] ?? '') : kept.join(' ')
+  return capitalize(named)
+}
+
+/**
+ * «Домодедовский» → «Домодедово», «Одинцовский» → «Одинцово».
+ *
+ * Работают только суффиксы -овский/-евский: по ним город восстанавливается
+ * однозначно. «Пушкинский» так не разворачивается (Пушкино или Пушкин —
+ * из одного слова не понять), и остаётся как есть: поиск по району всё равно
+ * триграммный и «Пушкино» с «Пушкинским» сопоставит.
+ */
+function cityFromAdjective(word: string): string {
+  if (/овский$/i.test(word)) return word.replace(/овский$/i, 'ово')
+  if (/евский$/i.test(word)) return word.replace(/евский$/i, 'ево')
+  return word
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
 /** Первая фотография комплекса — она же обложка ЖК. */

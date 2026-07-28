@@ -237,14 +237,31 @@ function toApartmentData(
   }
 }
 
+/** Поля ЖК, которые приходят из выгрузки и которые администратор правит руками. */
+const PROJECT_FIELDS = [
+  'developer',
+  'district',
+  'metro',
+  'metroDistanceMin',
+  'address',
+  'url',
+  'imageUrl',
+  'description',
+] as const satisfies readonly (keyof ParsedProject)[]
+
 /**
  * Подбирает ЖК по названию, создаёт недостающие.
  *
  * Сравнение без учёта регистра — «ЖК Северный парк» и «ЖК СЕВЕРНЫЙ ПАРК»
- * в одной выгрузке означают один комплекс. Уже заведённые ЖК не
- * переписываются: их правят руками в админке, и импорт не должен затирать
- * правки. Найденное за прогон запоминается, чтобы не ходить в базу на
- * каждую из тысячи квартир.
+ * в одной выгрузке означают один комплекс. Найденное за прогон запоминается,
+ * чтобы не ходить в базу на каждую из тысячи квартир.
+ *
+ * Заполненные поля уже заведённого ЖК не трогаются: их правят руками в
+ * админке, и импорт не должен затирать правки. Но пустые — дозаполняются:
+ * когда в разборе появляется поле, которого раньше не было (так случилось с
+ * районом у ДомКлика), ЖК получает его на ближайшем прогоне, без ручной
+ * правки и без пересоздания каталога. Стёртое администратором в пустоту
+ * значение вернётся — цена того, чтобы новые поля доезжали сами.
  */
 class ProjectResolver {
   private readonly cache = new Map<string, string>()
@@ -259,9 +276,13 @@ class ProjectResolver {
 
     const existing = await this.db.project.findFirst({
       where: { name: { equals: project.name, mode: 'insensitive' } },
-      select: { id: true },
+      select: { id: true, developer: true, district: true, metro: true, metroDistanceMin: true, address: true, url: true, imageUrl: true, description: true },
     })
     if (existing) {
+      const patch = blanksToFill(existing, project)
+      if (Object.keys(patch).length > 0) {
+        await this.db.project.update({ where: { id: existing.id }, data: patch })
+      }
       this.cache.set(key, existing.id)
       return existing.id
     }
@@ -290,6 +311,22 @@ class ProjectResolver {
     this.cache.set(key, created.id)
     return created.id
   }
+}
+
+/** Поля, которые в базе пусты, а в выгрузке есть. Остальное не трогаем. */
+function blanksToFill(
+  stored: Pick<Prisma.ProjectUncheckedCreateInput, (typeof PROJECT_FIELDS)[number]>,
+  parsed: ParsedProject,
+): Prisma.ProjectUncheckedUpdateInput {
+  const patch: Prisma.ProjectUncheckedUpdateInput = {}
+  for (const field of PROJECT_FIELDS) {
+    const current = stored[field]
+    const incoming = parsed[field]
+    if (incoming === null) continue
+    if (current !== null && current !== undefined && current !== '') continue
+    patch[field] = incoming
+  }
+  return patch
 }
 
 // ── Состояние фида ──────────────────────────────────────────

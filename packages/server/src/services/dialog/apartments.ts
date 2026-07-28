@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 
 import type { Db } from '../../db/prisma.js'
+import { findProjectsByPlace } from './places.js'
 
 /**
  * Запросы к каталогу, которыми пользуется модель.
@@ -15,6 +16,11 @@ import type { Db } from '../../db/prisma.js'
  * Правило видимости одно на оба запроса: показываем активные лоты активных ЖК.
  * Лот без привязки к ЖК (в фиде не было названия) тоже виден — иначе часть
  * каталога молча исчезла бы из выдачи.
+ *
+ * Район — единственный фильтр, который не превращается в условие SQL напрямую:
+ * человек называет место как угодно («Домодедово», «Домодедовский городской
+ * округ»), поэтому оно сначала переводится в список ЖК триграммным поиском —
+ * см. places.ts.
  */
 
 /** Сколько квартир уходит модели по умолчанию. Больше — уже не подборка, а список. */
@@ -161,7 +167,7 @@ function buildApartmentWhere(params: ApartmentSearchParams | ProjectFilterParams
 
   if (search.projectIds && search.projectIds.length > 0) and.push({ projectId: { in: search.projectIds } })
 
-  if (params.district) and.push({ project: { district: { contains: params.district, mode: 'insensitive' } } })
+  // Района здесь нет намеренно: он уже превращён в `projectIds` — см. narrowByPlace.
   if (params.metro) and.push({ project: { metro: { contains: params.metro, mode: 'insensitive' } } })
   if (search.finishing) and.push({ finishing: { contains: search.finishing, mode: 'insensitive' } })
 
@@ -179,8 +185,31 @@ function buildApartmentWhere(params: ApartmentSearchParams | ProjectFilterParams
   return { AND: and }
 }
 
+/**
+ * Заменяет название места списком ЖК.
+ *
+ * `null` означает «в каталоге нет ни одного подходящего ЖК» — вызывающий
+ * возвращает пустую подборку, а не ищет по всей базе без фильтра.
+ */
+async function narrowByPlace(db: Db, params: ApartmentSearchParams): Promise<ApartmentSearchParams | null> {
+  if (!params.district) return params
+
+  const found = await findProjectsByPlace(db, params.district)
+  if (found.length === 0) return null
+
+  // Если ЖК заданы и списком, и районом — берём пересечение: район сужает
+  // выбор, а не расширяет его.
+  const projectIds = params.projectIds ? params.projectIds.filter((id) => found.includes(id)) : found
+  if (projectIds.length === 0) return null
+
+  return { ...params, district: undefined, projectIds }
+}
+
 export async function searchApartments(db: Db, params: ApartmentSearchParams): Promise<ApartmentSearchResult> {
-  const where = buildApartmentWhere(params)
+  const narrowed = await narrowByPlace(db, params)
+  if (narrowed === null) return { total: 0, apartments: [] }
+
+  const where = buildApartmentWhere(narrowed)
   const limit = clampLimit(params.limit)
 
   const [total, rows] = await Promise.all([
@@ -198,7 +227,11 @@ export async function searchApartments(db: Db, params: ApartmentSearchParams): P
 
 export async function listProjects(db: Db, params: ProjectFilterParams): Promise<ProjectSummary[]> {
   const projectWhere: Prisma.ProjectWhereInput = { isActive: true }
-  if (params.district) projectWhere.district = { contains: params.district, mode: 'insensitive' }
+  if (params.district) {
+    const found = await findProjectsByPlace(db, params.district)
+    if (found.length === 0) return []
+    projectWhere.id = { in: found }
+  }
   if (params.metro) projectWhere.metro = { contains: params.metro, mode: 'insensitive' }
 
   const projects = await db.project.findMany({ where: projectWhere, orderBy: { name: 'asc' } })

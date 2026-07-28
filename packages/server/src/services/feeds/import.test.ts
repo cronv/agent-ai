@@ -257,6 +257,8 @@ describe('importFeed — фид ДомКлик', () => {
       slug: 'zhk-mishino-2',
       developer: 'НДВ Супермаркет недвижимости',
       address: 'Химки городской округ. ул. Озерная, ЖК Мишино-2, корп. 5, 6, 7, 8, 9, 10',
+      // Района в выгрузке ДомКлика нет — он вычислен из адреса.
+      district: 'Химки',
       imageUrl:
         'https://exchange.novostroy-m.ru/images/novos/1600x1200_without_watermark/8ee9305058d91e0f006aa0cb9698a5b7.jpg',
     })
@@ -327,7 +329,7 @@ describe('importFeed — фид ДомКлик', () => {
     const project = await testDb.project.findFirstOrThrow({ where: { name: 'ЖК «Мишино-2»' } })
     await testDb.project.update({
       where: { id: project.id },
-      data: { district: 'Химки', description: 'Своими словами', metro: 'Планерная' },
+      data: { district: 'Старбеево', description: 'Своими словами', metro: 'Планерная' },
     })
 
     const second = await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
@@ -337,7 +339,21 @@ describe('importFeed — фид ДомКлик', () => {
     expect(await testDb.apartment.count()).toBe(7)
 
     const kept = await testDb.project.findUniqueOrThrow({ where: { id: project.id } })
-    expect(kept).toMatchObject({ district: 'Химки', description: 'Своими словами', metro: 'Планерная' })
+    expect(kept).toMatchObject({ district: 'Старбеево', description: 'Своими словами', metro: 'Планерная' })
+  })
+
+  it('повторный импорт дозаполняет поля ЖК, которые в базе пусты', async () => {
+    const feedId = await createDomclickFeed()
+    await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    // Так выглядит ЖК, заведённый до того, как импорт научился разбирать район.
+    const project = await testDb.project.findFirstOrThrow({ where: { name: 'ЖК «Мишино-2»' } })
+    await testDb.project.update({ where: { id: project.id }, data: { district: null, developer: null } })
+
+    await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    const filled = await testDb.project.findUniqueOrThrow({ where: { id: project.id } })
+    expect(filled).toMatchObject({ district: 'Химки', developer: 'НДВ Супермаркет недвижимости' })
   })
 
   it('проданный лот выключается, новый заводится, изменившаяся цена обновляется', async () => {

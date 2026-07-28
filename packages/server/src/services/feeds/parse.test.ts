@@ -259,6 +259,8 @@ describe('ДомКлик — многокорпусный ЖК', () => {
       name: 'ЖК «Мишино-2»',
       developer: 'НДВ Супермаркет недвижимости',
       address: 'Химки городской округ. ул. Озерная, ЖК Мишино-2, корп. 5, 6, 7, 8, 9, 10',
+      // Отдельного тега с районом в выгрузке нет — он вычислен из адреса.
+      district: 'Химки',
       imageUrl:
         'https://exchange.novostroy-m.ru/images/novos/1600x1200_without_watermark/8ee9305058d91e0f006aa0cb9698a5b7.jpg',
     })
@@ -285,6 +287,10 @@ describe('ДомКлик — однокорпусный ЖК', () => {
     expect(byId(parsed.apartments, '6325593').floorsTotal).toBe(17)
     expect(byId(parsed.apartments, '6325593').deadline?.toISOString().slice(0, 10)).toBe('2026-09-30')
     expect(parsed.apartments[0]?.project?.name).toBe('ЖК «Красная горка» (Подольск)')
+  })
+
+  it('район берётся из уточнения в названии ЖК', () => {
+    expect(parsed.apartments[0]?.project?.district).toBe('Подольск')
   })
 })
 

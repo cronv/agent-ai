@@ -94,6 +94,48 @@ describe('searchApartments', () => {
     expect(found.apartments.at(-1)?.price).toBe(10_400_000)
   })
 
+  it('район ищется в любой форме, а не буквальным совпадением', async () => {
+    const feed = await createFeed()
+    const kosmos = await createProject({
+      name: 'ЖК «Космос» (Домодедово)',
+      district: 'Домодедово',
+      address: 'Домодедовский городской округ. ул. Жуковского, д. 4',
+    })
+    const bereg = await createProject({ name: 'ЖК «Берег»', district: 'Химки' })
+    await createApartment({ feedId: feed.id, projectId: kosmos.id, rooms: 0, price: 4_718_010 })
+    await createApartment({ feedId: feed.id, projectId: bereg.id, rooms: 0, price: 6_384_000 })
+
+    for (const district of ['Домодедово', 'домодедовский', 'Домодедовский городской округ', 'Домадедово']) {
+      const found = await searchApartments(testDb, { rooms: [0], district })
+      expect(names(found.apartments), district).toEqual(['ЖК «Космос» (Домодедово)'])
+    }
+  })
+
+  it('района, которого нет в каталоге, не выдаёт чужие квартиры', async () => {
+    const feed = await createFeed()
+    const project = await createProject({ name: 'ЖК «Берег»', district: 'Химки' })
+    await createApartment({ feedId: feed.id, projectId: project.id })
+
+    expect(await searchApartments(testDb, { district: 'Мурманск' })).toEqual({ total: 0, apartments: [] })
+  })
+
+  it('район сужает выбор ЖК, а не расширяет его', async () => {
+    const feed = await createFeed()
+    const kosmos = await createProject({ name: 'Космос', district: 'Домодедово' })
+    const bereg = await createProject({ name: 'Берег', district: 'Химки' })
+    await createApartment({ feedId: feed.id, projectId: kosmos.id })
+    await createApartment({ feedId: feed.id, projectId: bereg.id })
+
+    // ЖК заданы списком, район — словом; остаётся пересечение.
+    expect(names((await searchApartments(testDb, { district: 'Химки', projectIds: [bereg.id] })).apartments)).toEqual([
+      'Берег',
+    ])
+    expect(await searchApartments(testDb, { district: 'Химки', projectIds: [kosmos.id] })).toEqual({
+      total: 0,
+      apartments: [],
+    })
+  })
+
   it('лимит ограничен потолком', async () => {
     const feed = await createFeed()
     const project = await createProject()
