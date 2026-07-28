@@ -21,7 +21,7 @@
     "build:widget": "npm run build -w @novostroyki/widget",
     "start": "npm run start -w @novostroyki/server",
     "seed:demo": "npm run seed:demo -w @novostroyki/server",
-    "test": "npm run test -w @novostroyki/server",
+    "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "prisma:generate": "npm run prisma:generate -w @novostroyki/server",
     "migrate:dev": "npm run migrate:dev -w @novostroyki/server",

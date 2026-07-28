@@ -1,3 +1,5 @@
+import type { Pacing } from './pacing.ts'
+
 /**
  * Типы того, что приходит с сервера. Повторяют контракт публичного API
  * (`packages/server/src/routes/chat.routes.ts`) — виджет собирается отдельно
@@ -38,6 +40,8 @@ export interface WidgetConfig {
   greeting: string
   exampleQuestions: string[]
   privacyPolicyUrl: string | null
+  /** Человеческий ритм ответа: пауза, темп печати, разбивка на сообщения. */
+  rhythm: Pacing
 }
 
 /** Контакт, сохранённый ассистентом (событие `lead`) или формой в ленте. */

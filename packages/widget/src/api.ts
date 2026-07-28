@@ -1,3 +1,4 @@
+import { DEFAULT_PACING, normalizePacing } from './pacing.ts'
 import type { ApartmentCard, ChatStreamEvent, HistoryMessage, SavedLead, WidgetConfig } from './types.ts'
 
 /**
@@ -36,6 +37,7 @@ export const DEFAULT_CONFIG: WidgetConfig = {
   greeting: 'Здравствуйте! Помогу подобрать квартиру в новостройке. Расскажите, что ищете — своими словами.',
   exampleQuestions: [],
   privacyPolicyUrl: null,
+  rhythm: DEFAULT_PACING,
 }
 
 export interface SendPayload {
@@ -75,7 +77,11 @@ export function createApi(baseUrl: string): ChatApi {
   return {
     async loadConfig(): Promise<WidgetConfig> {
       const response = await request(url('/api/widget/config'))
-      const body = (await response.json()) as Partial<WidgetConfig>
+      const body = (await response.json()) as Partial<WidgetConfig> & {
+        humanRhythm?: unknown
+        typingSpeed?: unknown
+        thinkDelayMs?: unknown
+      }
       return {
         enabled: body.enabled !== false,
         title: nonEmpty(body.title) ?? DEFAULT_CONFIG.title,
@@ -85,6 +91,13 @@ export function createApi(baseUrl: string): ChatApi {
           ? body.exampleQuestions.filter((item): item is string => typeof item === 'string' && item.trim() !== '')
           : [],
         privacyPolicyUrl: nonEmpty(body.privacyPolicyUrl ?? null),
+        // Старый сервер этих полей не пришлёт — тогда действуют значения по
+        // умолчанию, а не выключенный ритм.
+        rhythm: normalizePacing({
+          enabled: body.humanRhythm !== false,
+          charsPerSecond: body.typingSpeed,
+          thinkMaxMs: body.thinkDelayMs,
+        }),
       }
     },
 

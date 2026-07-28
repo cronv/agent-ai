@@ -28,9 +28,9 @@ type ContactStage = 'hidden' | 'form' | 'done'
 export function App({ apiBase }: { apiBase: string }) {
   const api = useMemo(() => createApi(apiBase), [apiBase])
   const sessionId = useMemo(getSessionId, [])
-  const chat = useChat({ api, sessionId })
 
   const [config, setConfig] = useState<WidgetConfig>(DEFAULT_CONFIG)
+  const chat = useChat({ api, sessionId, pacing: config.rhythm })
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
   const [plan, setPlan] = useState<ApartmentCard | null>(null)
@@ -182,7 +182,7 @@ export function App({ apiBase }: { apiBase: string }) {
             </span>
             <span class="head__text">
               <span class="head__title">{config.title}</span>
-              <span class="head__status">ИИ-ассистент · отвечает сразу</span>
+              <span class="head__status">ИИ-ассистент · на связи</span>
             </span>
             <button type="button" class="iconbtn" onClick={hide} aria-label="Свернуть чат">
               <CloseIcon size={18} />

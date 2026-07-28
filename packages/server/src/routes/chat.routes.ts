@@ -239,6 +239,10 @@ const chatRoutes: FastifyPluginAsync<ChatRoutesOptions> = async (app, options) =
       greeting: values.widget_greeting,
       exampleQuestions: values.widget_example_questions,
       privacyPolicyUrl: values.privacy_policy_url === '' ? null : values.privacy_policy_url,
+      // Ритм ответа: паузу и темп печати отмеряет виджет, здесь только цифры.
+      humanRhythm: values.human_rhythm_enabled,
+      typingSpeed: values.human_typing_speed,
+      thinkDelayMs: values.human_think_delay_ms,
     })
   })
 

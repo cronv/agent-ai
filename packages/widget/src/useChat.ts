@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useReducer, useRef } from 'preact/hooks'
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'preact/hooks'
 
 import { ChatApiError, type ChatApi } from './api.ts'
 import { toolLabel } from './format.ts'
+import { ChunkQueue, DEFAULT_PACING, playReply, type PacedChunk, type Pacing } from './pacing.ts'
 import { readPageContext } from './session.ts'
 import type { ApartmentCard, ChatError, FeedItem, SavedLead } from './types.ts'
 
@@ -21,6 +22,19 @@ import type { ApartmentCard, ChatError, FeedItem, SavedLead } from './types.ts'
  * Так лента не перерисовывается целиком на каждую букву и, что важнее,
  * незаконченный ответ отличим от законченного: если соединение оборвалось,
  * `done` не придёт вовсе, и написанное сохранится с пометкой «оборвалось».
+ *
+ * ── Про ритм ────────────────────────────────────────────────────────────────
+ *
+ * Между чтением потока и лентой стоит очередь: читатель складывает в неё всё,
+ * что прислал сервер, а `playReply` (см. `pacing.ts`) разбирает её в темпе
+ * человеческого набора — с паузой на обдумывание перед первым символом и
+ * разрывом длинного ответа на два-три сообщения. Поэтому `busy` перестаёт
+ * значить «идёт ответ»: пока виджет допечатывает, поток с сервером уже закрыт
+ * и посетителю можно писать дальше. Новое сообщение гасит печать (`abort`),
+ * недопечатанное дописывается разом и остаётся в ленте.
+ *
+ * Выключенный ритм возвращает прежнее поведение: очередь разбирается без
+ * задержек и без разрывов, то есть мгновенным стримингом.
  *
  * ── Про форму контакта ──────────────────────────────────────────────────────
  *
@@ -44,6 +58,8 @@ interface ChatState {
   /** Что ассистент делает прямо сейчас: «Подбираю квартиры». */
   tool: string | null
   phase: ChatPhase
+  /** Поток с сервером ещё открыт: пока да — поле ввода заблокировано. */
+  sending: boolean
   error: ChatError | null
   lead: SavedLead | null
   /** Сколько раз ассистент просил контакт: каждый вызов `save_lead` — повод показать форму. */
@@ -60,6 +76,9 @@ type Action =
   | { type: 'apartments'; apartments: ApartmentCard[] }
   | { type: 'lead'; lead: SavedLead }
   | { type: 'server-error'; message: string }
+  /** Конец сообщения посреди ответа: написанное уходит в ленту, печать продолжится в новом. */
+  | { type: 'split' }
+  | { type: 'stream-closed' }
   | { type: 'finish' }
   | { type: 'fail'; error: ChatError }
 
@@ -68,6 +87,7 @@ const INITIAL: ChatState = {
   draft: null,
   tool: null,
   phase: 'idle',
+  sending: false,
   error: null,
   lead: null,
   contactAsked: 0,
@@ -88,19 +108,30 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
         ? { ...state, historyLoaded: true }
         : { ...state, items: action.items, historyLoaded: true }
 
+    // Новый вопрос посреди недопечатанного ответа — обычное дело: то, что
+    // ассистент успел сказать, остаётся в ленте законченным сообщением.
     case 'ask':
       return {
         ...state,
-        items: [...state.items, { kind: 'user', id: action.id, text: action.text }],
+        items: [...closeDraft(state), { kind: 'user', id: action.id, text: action.text }],
         draft: EMPTY_DRAFT,
         tool: null,
         phase: 'waiting',
+        sending: true,
         error: null,
       }
 
     // Повтор: реплика посетителя уже в ленте, заново её добавлять не нужно.
     case 'restart':
-      return { ...state, draft: EMPTY_DRAFT, tool: null, phase: 'waiting', error: null }
+      return {
+        ...state,
+        items: closeDraft(state),
+        draft: EMPTY_DRAFT,
+        tool: null,
+        phase: 'waiting',
+        sending: true,
+        error: null,
+      }
 
     case 'text':
       return {
@@ -133,59 +164,61 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
     case 'server-error':
       return { ...state, error: { message: action.message, retriable: true }, tool: null }
 
+    // Разрыв на смысловой границе: сообщение закрыто, дальше пауза
+    // с индикатором «печатает» и следующее сообщение с чистого листа.
+    case 'split':
+      return { ...state, items: closeDraft(state), draft: EMPTY_DRAFT, tool: null, phase: 'waiting' }
+
+    case 'stream-closed':
+      return { ...state, sending: false }
+
     case 'finish': {
-      const draft = state.draft
-      const empty = !draft || (draft.text.trim() === '' && draft.apartments.length === 0)
       return {
         ...state,
-        items: empty
-          ? state.items
-          : [
-              ...state.items,
-              {
-                kind: 'assistant',
-                id: `a-${state.items.length}-${Date.now()}`,
-                text: draft.text,
-                apartments: draft.apartments,
-                failed: false,
-              },
-            ],
+        items: closeDraft(state),
         draft: null,
         tool: null,
         phase: 'idle',
+        sending: false,
       }
     }
 
     // Оборвалось: то, что успело прийти, остаётся в ленте с пометкой.
     case 'fail': {
-      const draft = state.draft
-      const partial = draft && (draft.text.trim() !== '' || draft.apartments.length > 0)
       return {
         ...state,
-        items: partial
-          ? [
-              ...state.items,
-              {
-                kind: 'assistant',
-                id: `a-${state.items.length}-${Date.now()}`,
-                text: draft.text,
-                apartments: draft.apartments,
-                failed: true,
-              },
-            ]
-          : state.items,
+        items: closeDraft(state, true),
         draft: null,
         tool: null,
         phase: 'idle',
+        sending: false,
         error: action.error,
       }
     }
   }
 }
 
+/** Черновик → законченное сообщение ленты. Пустой черновик просто исчезает. */
+function closeDraft(state: ChatState, failed = false): FeedItem[] {
+  const draft = state.draft
+  if (!draft || (draft.text.trim() === '' && draft.apartments.length === 0)) return state.items
+  return [
+    ...state.items,
+    {
+      kind: 'assistant',
+      id: `a-${state.items.length}-${Date.now()}`,
+      text: draft.text.trimEnd(),
+      apartments: draft.apartments,
+      failed,
+    },
+  ]
+}
+
 export interface UseChatOptions {
   api: ChatApi
   sessionId: string
+  /** Ритм ответа из настроек. Приезжает вместе с конфигом виджета, уже после первого рендера. */
+  pacing?: Pacing
 }
 
 export interface Chat {
@@ -198,6 +231,11 @@ export interface Chat {
   lead: SavedLead | null
   /** Растёт каждый раз, когда ассистент просит контакт: повод показать форму. */
   contactAsked: number
+  /**
+   * Запрос ещё в пути — поле ввода заблокировано. Пока виджет только
+   * допечатывает уже полученный ответ, писать можно: новое сообщение
+   * прервёт печать.
+   */
   busy: boolean
   send: (text: string) => void
   retry: () => void
@@ -206,7 +244,7 @@ export interface Chat {
   stop: () => void
 }
 
-export function useChat({ api, sessionId }: UseChatOptions): Chat {
+export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOptions): Chat {
   const [state, dispatch] = useReducer(chatReducer, INITIAL)
   const abortRef = useRef<AbortController | null>(null)
   const lastAskRef = useRef<string | null>(null)
@@ -214,73 +252,133 @@ export function useChat({ api, sessionId }: UseChatOptions): Chat {
   const historyRef = useRef(false)
   const page = useMemo(readPageContext, [])
 
+  // Настройки доезжают асинхронно, а `run` создаётся один раз: читаем ритм
+  // из ссылки, чтобы ответ шёл по актуальным значениям, а не по тем, что были
+  // на первом рендере.
+  const pacingRef = useRef(pacing)
+  useEffect(() => {
+    pacingRef.current = pacing
+  }, [pacing])
+
   const run = useCallback(
     async (text: string, repeat: boolean): Promise<void> => {
+      // Поток с сервером уже идёт — второй запрос отправлять нельзя.
+      // Недопечатанный ответ (поток закрыт, работает только печать) прерываем.
       if (busyRef.current) return
+      abortRef.current?.abort()
+
       busyRef.current = true
       lastAskRef.current = text
 
       const controller = new AbortController()
+      const { signal } = controller
       abortRef.current = controller
       dispatch(repeat ? { type: 'restart' } : { type: 'ask', id: `u-${Date.now()}`, text })
 
-      let finished = false
-      let started = false
-      try {
-        const stream = api.streamMessage({
-          sessionId,
-          message: text,
-          pageUrl: page.pageUrl,
-          referrer: page.referrer,
-          utm: page.utm,
-          signal: controller.signal,
-        })
+      const askedAt = Date.now()
+      const queue = new ChunkQueue<PacedChunk>()
+      /**
+       * Итог чтения потока. Одним объектом, а не отдельными переменными:
+       * читатель работает параллельно с печатью, и разбирать его результат
+       * приходится уже после того, как обе задачи закончились.
+       */
+      const outcome = {
+        /** Хоть одно событие пришло. */
+        started: false,
+        /** Дошли до `done`. */
+        finished: false,
+        /** Ассистент ходил в базу — обдумывать он будет дольше. */
+        tools: false,
+        failure: null as ChatError | null,
+      }
 
-        for await (const event of stream) {
-          started = true
-          switch (event.type) {
-            case 'text':
-              dispatch({ type: 'text', text: event.text })
-              break
-            case 'tool':
-              dispatch({ type: 'tool', label: toolLabel(event.name), contact: event.name === 'save_lead' })
-              break
-            case 'apartments':
-              dispatch({ type: 'apartments', apartments: event.apartments })
-              break
-            case 'lead':
-              dispatch({ type: 'lead', lead: event.lead })
-              break
-            case 'error':
-              dispatch({ type: 'server-error', message: event.message })
-              break
-            case 'done':
-              finished = true
-              dispatch({ type: 'finish' })
-              break
-            case 'ready':
-              break
-          }
-          if (finished) break
-        }
-
-        // Поток закончился, а `done` не пришло — соединение оборвалось.
-        if (!finished) dispatch({ type: 'fail', error: BROKEN_STREAM })
-      } catch (error) {
-        if (controller.signal.aborted) return
-        if (error instanceof ChatApiError) {
-          dispatch({ type: 'fail', error: { message: error.message, retriable: error.retriable } })
-        } else {
-          // Разрыв посреди потока прилетает сюда обычной сетевой ошибкой:
-          // ответ уже начался, значит дело не в запросе, а в связи.
-          dispatch({
-            type: 'fail',
-            error: started ? BROKEN_STREAM : { message: 'Что-то пошло не так. Попробуйте ещё раз.', retriable: true },
+      // Читатель: складывает всё, что прислал сервер, в очередь как есть.
+      // Признаки состояния (инструмент, контакт, ошибка) уходят в ленту сразу —
+      // они не текст ответа, а рассказ о том, что происходит прямо сейчас.
+      const read = async (): Promise<void> => {
+        try {
+          const stream = api.streamMessage({
+            sessionId,
+            message: text,
+            pageUrl: page.pageUrl,
+            referrer: page.referrer,
+            utm: page.utm,
+            signal,
           })
+
+          for await (const event of stream) {
+            outcome.started = true
+            switch (event.type) {
+              case 'text':
+                queue.push({ kind: 'text', text: event.text })
+                break
+              case 'apartments':
+                queue.push({ kind: 'apartments', apartments: event.apartments })
+                break
+              case 'tool':
+                outcome.tools = true
+                dispatch({ type: 'tool', label: toolLabel(event.name), contact: event.name === 'save_lead' })
+                break
+              case 'lead':
+                dispatch({ type: 'lead', lead: event.lead })
+                break
+              case 'error':
+                dispatch({ type: 'server-error', message: event.message })
+                break
+              case 'done':
+                outcome.finished = true
+                break
+              case 'ready':
+                break
+            }
+            if (outcome.finished) break
+          }
+        } catch (error) {
+          if (signal.aborted) return
+          if (error instanceof ChatApiError) {
+            outcome.failure = { message: error.message, retriable: error.retriable }
+          } else {
+            // Разрыв посреди потока прилетает сюда обычной сетевой ошибкой:
+            // ответ уже начался, значит дело не в запросе, а в связи.
+            outcome.failure = outcome.started
+              ? BROKEN_STREAM
+              : { message: 'Что-то пошло не так. Попробуйте ещё раз.', retriable: true }
+          }
+        } finally {
+          queue.close()
+          busyRef.current = false
+          dispatch({ type: 'stream-closed' })
         }
+      }
+
+      // Отмена гасит и печать, и ожидание следующего куска.
+      signal.addEventListener('abort', () => queue.close(), { once: true })
+
+      try {
+        await Promise.all([
+          read(),
+          playReply({
+            queue,
+            sink: {
+              text: (chunk) => dispatch({ type: 'text', text: chunk }),
+              apartments: (cards) => dispatch({ type: 'apartments', apartments: cards }),
+              split: () => dispatch({ type: 'split' }),
+            },
+            pacing: pacingRef.current,
+            signal,
+            elapsedMs: () => Date.now() - askedAt,
+            wasBusy: () => outcome.tools,
+          }),
+        ])
+
+        if (signal.aborted) return
+        if (outcome.failure) dispatch({ type: 'fail', error: outcome.failure })
+        // Поток закончился, а `done` не пришло — соединение оборвалось.
+        else if (outcome.finished) dispatch({ type: 'finish' })
+        else dispatch({ type: 'fail', error: BROKEN_STREAM })
       } finally {
         busyRef.current = false
-        abortRef.current = null
+        if (abortRef.current === controller) abortRef.current = null
       }
     },
     [api, page, sessionId],
@@ -336,7 +434,7 @@ export function useChat({ api, sessionId }: UseChatOptions): Chat {
     error: state.error,
     lead: state.lead,
     contactAsked: state.contactAsked,
-    busy: state.phase !== 'idle',
+    busy: state.sending,
     send,
     retry,
     loadHistory,

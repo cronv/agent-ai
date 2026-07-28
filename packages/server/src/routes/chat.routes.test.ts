@@ -350,7 +350,22 @@ describe('публичное API чата', () => {
       greeting: 'Здравствуйте!',
       exampleQuestions: ['Что есть до 10 млн?'],
       privacyPolicyUrl: null,
+      humanRhythm: true,
+      typingSpeed: 32,
+      thinkDelayMs: 3500,
     })
+  })
+
+  it('отдаёт виджету настройки человеческого ритма', async () => {
+    await settings.setMany({
+      human_rhythm_enabled: false,
+      human_typing_speed: 45,
+      human_think_delay_ms: 2000,
+    })
+
+    const config = await app.inject({ method: 'GET', url: '/api/widget/config' }).then((r) => r.json())
+
+    expect(config).toMatchObject({ humanRhythm: false, typingSpeed: 45, thinkDelayMs: 2000 })
   })
 
   it('в конфиг не попадают секреты', async () => {

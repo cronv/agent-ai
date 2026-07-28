@@ -161,6 +161,9 @@ const CONFIG = {
     'Сравните два ЖК по срокам сдачи',
   ],
   privacyPolicyUrl: 'https://example.com/privacy',
+  humanRhythm: true,
+  typingSpeed: 32,
+  thinkDelayMs: 3500,
 }
 
 interface StoredMessage {
