@@ -1,6 +1,6 @@
 import type { Db } from '../../db/prisma.js'
 import type { SettingsService } from '../settings/index.js'
-import type { ApartmentCard } from './apartments.js'
+import { listCatalogLocations, type ApartmentCard } from './apartments.js'
 import {
   AnthropicModelClient,
   MODEL_ERROR_MESSAGES,
@@ -158,16 +158,18 @@ export class DialogEngine {
       await appendMessage(this.db, { conversationId, role: 'user', content: text })
     }
 
-    const [context, projectCount, knowledgeDocs] = await Promise.all([
+    const [context, projectCount, knowledgeDocs, locations] = await Promise.all([
       loadDialogContext(this.db, conversationId),
       this.db.project.count({ where: { isActive: true } }),
       this.db.knowledgeDoc.count({ where: { status: 'ready' } }),
+      listCatalogLocations(this.db),
     ])
 
     const system = buildSystemPrompt({
       basePrompt: config.system_prompt,
       today: this.now(),
       projectCount,
+      locations,
       hasKnowledge: knowledgeDocs > 0,
       visitorMessages: context.visitorMessages,
       apartmentsShown: context.apartmentsShown,

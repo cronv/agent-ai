@@ -86,6 +86,87 @@ export interface ApartmentSearchResult {
   /** Сколько всего подходит под фильтры — модель говорит «нашлось 42, показываю 5». */
   total: number
   apartments: ApartmentCard[]
+  /** Заполнено только при `total === 0`: чем именно вызван ноль. */
+  empty?: EmptySearchFacts
+}
+
+/**
+ * Локация каталога — то, что модели разрешено называть географией агентства.
+ *
+ * Собирается из базы: появится восьмой ЖК в новом городе — город появится
+ * и здесь, без правок кода.
+ */
+export interface CatalogLocation {
+  /** Место так, как оно записано в каталоге: «Химки», «Пушкинский». */
+  name: string
+  /** Активных лотов в этом месте. */
+  apartmentCount: number
+  /**
+   * Что есть по комнатностям: сколько и от какой цены, по возрастанию.
+   *
+   * Одних названий комнатностей мало. Увидев «в Домодедово студии от 4,7 млн»
+   * и не увидев цен по однушкам, модель заявляет, что в Домодедово однушки
+   * дешевле подольских, — хотя они там на миллион дороже. Цена «от» по каждой
+   * комнатности убирает и эту догадку.
+   */
+  rooms: PlaceRooms[]
+  priceMin: number
+  priceMax: number
+}
+
+/**
+ * Почему поиск вернул ноль.
+ *
+ * Ноль сам по себе неотличим от «такого товара нет вообще», и модель читает
+ * его именно так: поискала двухкомнатные в Химках площадью до 40 м², получила
+ * пустоту и объявила, что двухкомнатных в Химках нет. Их тридцать. Поэтому
+ * вместе с нулём уходят цифры, которых модели не хватало, чтобы ответить
+ * честно: сколько лотов в этой локации, сколько среди них нужной комнатности,
+ * какие у них цены и площади и сколько нашлось бы, сними она своё же
+ * ограничение.
+ */
+export interface EmptySearchFacts {
+  /** Место из запроса, дословно. `null` — по месту не искали. */
+  place: string | null
+  /** Нашлось ли это место в каталоге. `false` — человек назвал город, которого у агентства нет. */
+  placeKnown: boolean
+  /** Весь географический охват агентства. */
+  locations: CatalogLocation[]
+  /** Активных лотов в этом месте; без фильтра по месту — во всём каталоге. */
+  inPlace: number
+  /**
+   * Что есть в этом месте по комнатностям — с ценой от.
+   *
+   * Одного списка комнатностей мало: увидев «в Подольске есть студии», модель
+   * тут же предлагает их человеку с бюджетом до 4 млн, хотя самая дешёвая
+   * студия там стоит 4,4 млн. Цена «от» в той же строке эту подмену закрывает.
+   */
+  roomsInPlace: PlaceRooms[]
+  /** Комнатность из запроса. Пусто — не спрашивали. */
+  rooms: number[]
+  /** Лотов нужной комнатности в этом месте — без ограничений по площади, цене, этажу, отделке и сроку. */
+  inPlaceWithRooms: number
+  /** Вилка цен и площадей по этим лотам — из чего человеку реально выбирать. */
+  priceMin: number | null
+  priceMax: number | null
+  areaMin: number | null
+  areaMax: number | null
+  /** Сколько нашлось бы, если снять это ограничение, оставив остальные. */
+  relaxed: RelaxedCount[]
+}
+
+export interface RelaxedCount {
+  /** Ограничение по-русски: «площадь», «цена», «площадь и цена». */
+  filter: string
+  total: number
+}
+
+/** Комнатность в наличии и с какой цены она начинается. */
+export interface PlaceRooms {
+  /** 0 — студия. */
+  rooms: number
+  count: number
+  priceMin: number
 }
 
 export interface ProjectFilterParams {
@@ -207,7 +288,9 @@ async function narrowByPlace(db: Db, params: ApartmentSearchParams): Promise<Apa
 
 export async function searchApartments(db: Db, params: ApartmentSearchParams): Promise<ApartmentSearchResult> {
   const narrowed = await narrowByPlace(db, params)
-  if (narrowed === null) return { total: 0, apartments: [] }
+  if (narrowed === null) {
+    return { total: 0, apartments: [], empty: await explainEmptySearch(db, params, null) }
+  }
 
   const where = buildApartmentWhere(narrowed)
   const limit = clampLimit(params.limit)
@@ -222,7 +305,194 @@ export async function searchApartments(db: Db, params: ApartmentSearchParams): P
     }),
   ])
 
+  if (total === 0) {
+    return { total, apartments: [], empty: await explainEmptySearch(db, params, narrowed) }
+  }
+
   return { total, apartments: rows.map(toCard) }
+}
+
+/** Место без района в каталоге. Такие лоты всё равно находятся поиском, поэтому и в перечне они видны. */
+const PLACELESS = 'Без указания района'
+
+/**
+ * Весь географический охват каталога: локация, число лотов, комнатности, цены.
+ *
+ * Это опора против выдуманных городов. Пока модель не видит списка, она берёт
+ * Мытищи и Долгопрудный из общих знаний о Подмосковье и подаёт их как
+ * ассортимент агентства; со списком выдумывать нечего.
+ */
+export async function listCatalogLocations(db: Db): Promise<CatalogLocation[]> {
+  const [projects, grouped] = await Promise.all([
+    db.project.findMany({ where: { isActive: true }, select: { id: true, name: true, district: true } }),
+    db.apartment.groupBy({
+      by: ['projectId', 'rooms'],
+      where: visibleApartments(),
+      _count: { _all: true },
+      _min: { price: true },
+      _max: { price: true },
+    }),
+  ])
+
+  interface PlaceStats {
+    count: number
+    min: number | null
+    max: number | null
+    rooms: Map<number, PlaceRooms>
+  }
+
+  const placeOf = new Map(projects.map((project) => [project.id, placeOfProject(project)]))
+  const places = new Map<string, PlaceStats>()
+
+  for (const row of grouped) {
+    const name = row.projectId === null ? PLACELESS : placeOf.get(row.projectId)
+    if (name === undefined) continue
+    const entry = places.get(name) ?? { count: 0, min: null, max: null, rooms: new Map<number, PlaceRooms>() }
+    entry.count += row._count._all
+    if (row._min.price !== null) entry.min = entry.min === null ? row._min.price : Math.min(entry.min, row._min.price)
+    if (row._max.price !== null) entry.max = entry.max === null ? row._max.price : Math.max(entry.max, row._max.price)
+    if (row.rooms !== null) {
+      // Одна и та же комнатность приходит из нескольких ЖК локации — складываем.
+      const seen = entry.rooms.get(row.rooms)
+      const priceMin = row._min.price ?? 0
+      entry.rooms.set(row.rooms, {
+        rooms: row.rooms,
+        count: (seen?.count ?? 0) + row._count._all,
+        priceMin: seen === undefined ? priceMin : Math.min(seen.priceMin, priceMin),
+      })
+    }
+    places.set(name, entry)
+  }
+
+  return [...places]
+    .map(([name, entry]) => ({
+      name,
+      apartmentCount: entry.count,
+      rooms: [...entry.rooms.values()].sort((a, b) => a.rooms - b.rooms),
+      priceMin: entry.min ?? 0,
+      priceMax: entry.max ?? 0,
+    }))
+    .sort((a, b) => b.apartmentCount - a.apartmentCount || a.name.localeCompare(b.name, 'ru'))
+}
+
+/** Район, а если он не заполнен — название ЖК: место должно быть хоть как-то названо. */
+function placeOfProject(project: { name: string; district: string | null }): string {
+  const district = project.district?.trim()
+  return district === undefined || district === '' ? project.name : district
+}
+
+/**
+ * Ограничения, которые модель добавляет от себя чаще всего и которые чаще
+ * всего и обнуляют выдачу. Для каждого считаем, сколько нашлось бы без него.
+ */
+const RELAXABLE: { label: string; keys: (keyof ApartmentSearchParams)[] }[] = [
+  { label: 'площадь', keys: ['areaMin', 'areaMax'] },
+  { label: 'цена', keys: ['priceMin', 'priceMax'] },
+  { label: 'этаж', keys: ['floorMin', 'floorMax'] },
+  { label: 'отделка', keys: ['finishing'] },
+  { label: 'срок сдачи', keys: ['deadlineBefore'] },
+]
+
+async function explainEmptySearch(
+  db: Db,
+  params: ApartmentSearchParams,
+  narrowed: ApartmentSearchParams | null,
+): Promise<EmptySearchFacts> {
+  const locations = await listCatalogLocations(db)
+  const rooms = params.rooms ?? []
+  const place = params.district ?? null
+
+  // Место названо, но в каталоге его нет — считать больше нечего, вся правда
+  // в перечне локаций.
+  if (narrowed === null) {
+    return {
+      place,
+      placeKnown: false,
+      locations,
+      inPlace: 0,
+      roomsInPlace: [],
+      rooms,
+      inPlaceWithRooms: 0,
+      priceMin: null,
+      priceMax: null,
+      areaMin: null,
+      areaMax: null,
+      relaxed: [],
+    }
+  }
+
+  // «В этом месте» — это только география: ЖК, найденные по району, и метро.
+  // Всё остальное снято намеренно: нам нужен знаменатель, а не ещё один ноль.
+  const placeOnly: ApartmentSearchParams = {}
+  if (narrowed.projectIds) placeOnly.projectIds = narrowed.projectIds
+  if (narrowed.metro) placeOnly.metro = narrowed.metro
+
+  const withRooms = rooms.length > 0 ? { ...placeOnly, rooms } : placeOnly
+
+  const [inPlace, roomRows, stats, relaxed] = await Promise.all([
+    db.apartment.count({ where: buildApartmentWhere(placeOnly) }),
+    db.apartment.groupBy({
+      by: ['rooms'],
+      where: buildApartmentWhere(placeOnly),
+      _count: { _all: true },
+      _min: { price: true },
+    }),
+    db.apartment.aggregate({
+      where: buildApartmentWhere(withRooms),
+      _count: { _all: true },
+      _min: { price: true, area: true },
+      _max: { price: true, area: true },
+    }),
+    countRelaxed(db, narrowed),
+  ])
+
+  return {
+    place,
+    placeKnown: true,
+    locations,
+    inPlace,
+    roomsInPlace: roomRows
+      .filter((row): row is typeof row & { rooms: number } => row.rooms !== null)
+      .map((row) => ({ rooms: row.rooms, count: row._count._all, priceMin: row._min.price ?? 0 }))
+      .sort((a, b) => a.rooms - b.rooms),
+    rooms,
+    inPlaceWithRooms: stats._count._all,
+    priceMin: stats._min.price,
+    priceMax: stats._max.price,
+    areaMin: stats._min.area,
+    areaMax: stats._max.area,
+    relaxed,
+  }
+}
+
+/**
+ * Сколько нашлось бы, сними мы по одному ограничению — и сколько, сними их все.
+ * Считается только на пустой выдаче, поэтому лишних запросов в обычном подборе нет.
+ */
+async function countRelaxed(db: Db, narrowed: ApartmentSearchParams): Promise<RelaxedCount[]> {
+  const applied = RELAXABLE.filter((group) => group.keys.some((key) => narrowed[key] !== undefined))
+  if (applied.length === 0) return []
+
+  const variants = applied.map((group) => ({ filter: group.label, keys: group.keys }))
+  if (applied.length > 1) {
+    variants.push({
+      filter: applied.map((group) => group.label).join(' и '),
+      keys: applied.flatMap((group) => group.keys),
+    })
+  }
+
+  return Promise.all(
+    variants.map(async (variant) => ({
+      filter: variant.filter,
+      total: await db.apartment.count({ where: buildApartmentWhere(omit(narrowed, variant.keys)) }),
+    })),
+  )
+}
+
+function omit(params: ApartmentSearchParams, keys: (keyof ApartmentSearchParams)[]): ApartmentSearchParams {
+  const copy = { ...params }
+  for (const key of keys) delete copy[key]
+  return copy
 }
 
 export async function listProjects(db: Db, params: ProjectFilterParams): Promise<ProjectSummary[]> {

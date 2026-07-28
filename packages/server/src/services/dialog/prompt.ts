@@ -1,3 +1,6 @@
+import type { CatalogLocation } from './apartments.js'
+import { millions, plural, roomsLabel } from './wording.js'
+
 /**
  * Сборка системного промпта.
  *
@@ -11,8 +14,15 @@
  *                          обучения и уверенно ошибается на пару лет;
  *   размер каталога      — пустая база знаний должна менять поведение, а не
  *                          порождать выдуманные условия ипотеки;
+ *   локации каталога     — без списка модель достаёт географию из общих знаний
+ *                          и зовёт клиента в Мытищи, которых у агентства нет;
  *   ход разговора        — правило «не проси контакт раньше времени» работает
  *                          только тогда, когда модель знает, где она сейчас.
+ *
+ * Перечень локаций — именно перечень, а не намёк: запрет «не выдумывай города»
+ * без него нечем исполнить, модели просто не с чем сверяться. Поэтому у каждой
+ * локации сразу стоит и то, что в ней есть, — комнатности и вилка цен: тогда
+ * альтернатива предлагается по факту, а не наугад.
  */
 
 export interface PromptContext {
@@ -22,6 +32,8 @@ export interface PromptContext {
   today: Date
   /** Сколько активных ЖК в каталоге. */
   projectCount: number
+  /** Весь географический охват каталога — см. `listCatalogLocations`. */
+  locations: CatalogLocation[]
   /** Есть ли что-нибудь в базе знаний. */
   hasKnowledge: boolean
   /** Сколько сообщений написал посетитель за всю переписку. */
@@ -49,7 +61,67 @@ export function buildSystemPrompt(context: PromptContext): string {
     contactLine(context),
   ]
 
-  return `${context.basePrompt.trim()}\n\n# Сейчас\n\n${lines.map((line) => `- ${line}`).join('\n')}`
+  const now = `# Сейчас\n\n${lines.map((line) => `- ${line}`).join('\n')}`
+  const places = locationsBlock(context.locations)
+
+  return [context.basePrompt.trim(), now, places].filter((part) => part !== '').join('\n\n')
+}
+
+/**
+ * Сколько локаций расписывать подробно, а сколько — назвать по имени.
+ *
+ * Пять локаций на боевых данных, но каталог растёт: сотня районов, расписанных
+ * построчно, съест контекст и утопит в себе всё остальное. Подробно идут самые
+ * крупные, остальные — просто именами, и этого уже достаточно, чтобы не
+ * выдумывать: сверять название есть с чем.
+ */
+const LOCATIONS_IN_DETAIL = 12
+const LOCATIONS_NAMED = 60
+
+function locationsBlock(locations: CatalogLocation[]): string {
+  if (locations.length === 0) return ''
+
+  const detailed = locations.slice(0, LOCATIONS_IN_DETAIL)
+  const rest = locations.slice(LOCATIONS_IN_DETAIL)
+
+  const lines = detailed.map(
+    (place) =>
+      `- ${place.name} — ${place.apartmentCount} ${plural(place.apartmentCount, 'квартира', 'квартиры', 'квартир')}: ` +
+      place.rooms
+        .map((item) => `${roomsLabel(item.rooms)} ${item.count} шт. от ${millions(item.priceMin)}`)
+        .join('; '),
+  )
+
+  if (rest.length > 0 && rest.length <= LOCATIONS_NAMED) {
+    lines.push(`- и ещё: ${rest.map((place) => place.name).join(', ')}`)
+  } else if (rest.length > LOCATIONS_NAMED) {
+    const named = rest.slice(0, LOCATIONS_NAMED).map((place) => place.name).join(', ')
+    lines.push(
+      `- и ещё ${rest.length} ${plural(rest.length, 'локация', 'локации', 'локаций')}: ${named} и другие — ` +
+        'полный список смотри через list_projects, наизусть не додумывай.',
+    )
+  }
+
+  const floor = Math.min(...locations.map((place) => place.priceMin))
+
+  return [
+    '# Локации каталога',
+    '',
+    'Это весь географический охват агентства, собранный из базы прямо сейчас. Другой локации у нас нет:',
+    '',
+    lines.join('\n'),
+    '',
+    'Города и районы, которых нет в этом перечне, не называй, не предлагай и не упоминай как «варианты рядом».',
+    'Здесь только места — города и районы, а не названия ЖК. Про конкретный жилой комплекс этот перечень ' +
+      'не говорит ничего: спросили про ЖК — проверь через list_projects, а не по этим строкам.',
+    'Цены здесь — «от», по каждой комнатности отдельно. Сравнивая локации, сверяйся именно с ними и по той же ' +
+      'комнатности: там, где дешевле студии, однокомнатные могут быть дороже. Не пиши «там дешевле», не сравнив числа.',
+    `Самая дешёвая квартира во всём каталоге стоит ${millions(floor)}: дешевле нет ничего и нигде, ` +
+      'не обещай поискать в другой локации то, что дешевле этой цены.',
+    'Перечень отвечает на вопрос «где мы работаем и что там вообще есть». Поиск он не заменяет никогда: ' +
+      'на запрос про квартиры всё равно вызови search_apartments — даже когда по перечню уже видно, что ' +
+      'под условия ничего не подходит. Человек должен увидеть карточки ближайшей альтернативы, а не только текст.',
+  ].join('\n')
 }
 
 function contactLine(context: PromptContext): string {
@@ -84,14 +156,4 @@ const MONTHS = [
 function formatDate(date: Date): string {
   const month = MONTHS[date.getMonth()] ?? ''
   return `${date.getDate()} ${month} ${date.getFullYear()} года`
-}
-
-/** Русские окончания: 1 квартира, 2 квартиры, 5 квартир. */
-function plural(count: number, one: string, few: string, many: string): string {
-  const mod100 = Math.abs(count) % 100
-  const mod10 = mod100 % 10
-  if (mod100 >= 11 && mod100 <= 14) return many
-  if (mod10 === 1) return one
-  if (mod10 >= 2 && mod10 <= 4) return few
-  return many
 }

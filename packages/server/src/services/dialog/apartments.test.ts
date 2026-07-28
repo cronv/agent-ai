@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { createApartment, createFeed, createProject } from '../../testing/catalog.js'
 import { resetDatabase, testDb } from '../../testing/db.js'
-import { APARTMENT_SEARCH_LIMIT, listProjects, searchApartments } from './apartments.js'
+import { APARTMENT_SEARCH_LIMIT, listCatalogLocations, listProjects, searchApartments } from './apartments.js'
 
 /**
  * Подбор проверяется на настоящей базе: фильтры — это и есть SQL,
@@ -19,7 +19,9 @@ describe('searchApartments', () => {
   })
 
   it('на пустой базе возвращает пустую подборку', async () => {
-    expect(await searchApartments(testDb, {})).toEqual({ total: 0, apartments: [] })
+    const found = await searchApartments(testDb, {})
+    expect(found.total).toBe(0)
+    expect(found.apartments).toEqual([])
   })
 
   it('фильтрует по комнатности, цене и площади', async () => {
@@ -116,7 +118,9 @@ describe('searchApartments', () => {
     const project = await createProject({ name: 'ЖК «Берег»', district: 'Химки' })
     await createApartment({ feedId: feed.id, projectId: project.id })
 
-    expect(await searchApartments(testDb, { district: 'Мурманск' })).toEqual({ total: 0, apartments: [] })
+    const found = await searchApartments(testDb, { district: 'Мурманск' })
+    expect(found.total).toBe(0)
+    expect(found.apartments).toEqual([])
   })
 
   it('район сужает выбор ЖК, а не расширяет его', async () => {
@@ -130,10 +134,9 @@ describe('searchApartments', () => {
     expect(names((await searchApartments(testDb, { district: 'Химки', projectIds: [bereg.id] })).apartments)).toEqual([
       'Берег',
     ])
-    expect(await searchApartments(testDb, { district: 'Химки', projectIds: [kosmos.id] })).toEqual({
-      total: 0,
-      apartments: [],
-    })
+    const empty = await searchApartments(testDb, { district: 'Химки', projectIds: [kosmos.id] })
+    expect(empty.total).toBe(0)
+    expect(empty.apartments).toEqual([])
   })
 
   it('лимит ограничен потолком', async () => {
@@ -249,5 +252,159 @@ describe('listProjects', () => {
     await createApartment({ feedId: feed.id, projectId: other.id })
 
     expect(names(await listProjects(testDb, { district: 'примор' }))).toEqual(['Приморский дом'])
+  })
+})
+
+/**
+ * Перечень локаций — опора против выдуманных городов, а объяснение пустой
+ * выдачи — против ложного «нет вообще» (тикет 19). Обе вещи проверяются на
+ * настоящей базе: они целиком состоят из агрегатов.
+ */
+describe('listCatalogLocations', () => {
+  beforeEach(async () => {
+    await resetDatabase()
+  })
+
+  it('собирает локации из базы: сколько лотов, какие комнатности, вилка цен', async () => {
+    const feed = await createFeed()
+    const bereg = await createProject({ name: 'ЖК «Берег»', district: 'Химки' })
+    const mishino = await createProject({ name: 'ЖК «Мишино-2»', district: 'Химки' })
+    const vostok = await createProject({ name: 'ЖК «Восточный»', district: 'Звенигород' })
+    await createApartment({ feedId: feed.id, projectId: bereg.id, rooms: 2, price: 10_800_000 })
+    await createApartment({ feedId: feed.id, projectId: bereg.id, rooms: 0, price: 6_400_000 })
+    await createApartment({ feedId: feed.id, projectId: mishino.id, rooms: 3, price: 20_600_000 })
+    await createApartment({ feedId: feed.id, projectId: vostok.id, rooms: 1, price: 5_000_000 })
+
+    expect(await listCatalogLocations(testDb)).toEqual([
+      {
+        name: 'Химки',
+        apartmentCount: 3,
+        // Комнатность из двух разных ЖК локации складывается в одну строку.
+        rooms: [
+          { rooms: 0, count: 1, priceMin: 6_400_000 },
+          { rooms: 2, count: 1, priceMin: 10_800_000 },
+          { rooms: 3, count: 1, priceMin: 20_600_000 },
+        ],
+        priceMin: 6_400_000,
+        priceMax: 20_600_000,
+      },
+      {
+        name: 'Звенигород',
+        apartmentCount: 1,
+        rooms: [{ rooms: 1, count: 1, priceMin: 5_000_000 }],
+        priceMin: 5_000_000,
+        priceMax: 5_000_000,
+      },
+    ])
+  })
+
+  it('не показывает то, чего нельзя предложить: выключенные ЖК и лоты', async () => {
+    const feed = await createFeed()
+    const active = await createProject({ name: 'Живой', district: 'Химки' })
+    const hidden = await createProject({ name: 'Снятый', district: 'Мытищи', isActive: false })
+    await createApartment({ feedId: feed.id, projectId: active.id, rooms: 1 })
+    await createApartment({ feedId: feed.id, projectId: active.id, rooms: 2, isActive: false })
+    await createApartment({ feedId: feed.id, projectId: hidden.id, rooms: 2 })
+
+    expect(await listCatalogLocations(testDb)).toEqual([
+      {
+        name: 'Химки',
+        apartmentCount: 1,
+        rooms: [{ rooms: 1, count: 1, priceMin: 15_000_000 }],
+        priceMin: 15_000_000,
+        priceMax: 15_000_000,
+      },
+    ])
+  })
+
+  it('ЖК без района попадает в перечень под своим названием', async () => {
+    const feed = await createFeed()
+    const project = await createProject({ name: 'Без района', district: null })
+    await createApartment({ feedId: feed.id, projectId: project.id, rooms: 1 })
+
+    expect((await listCatalogLocations(testDb)).map((place) => place.name)).toEqual(['Без района'])
+  })
+})
+
+describe('searchApartments: объяснение пустой выдачи', () => {
+  beforeEach(async () => {
+    await resetDatabase()
+  })
+
+  /** Химки из тикета: двухкомнатные есть, но не площадью до 40 м². */
+  async function khimki(): Promise<void> {
+    const feed = await createFeed()
+    const bereg = await createProject({ name: 'ЖК «Берег»', district: 'Химки' })
+    const vostok = await createProject({ name: 'ЖК «Восточный»', district: 'Звенигород' })
+    await createApartment({ feedId: feed.id, projectId: bereg.id, rooms: 2, area: 52, price: 10_800_000 })
+    await createApartment({ feedId: feed.id, projectId: bereg.id, rooms: 2, area: 56, price: 11_200_000 })
+    await createApartment({ feedId: feed.id, projectId: bereg.id, rooms: 1, area: 34, price: 7_000_000 })
+    await createApartment({ feedId: feed.id, projectId: vostok.id, rooms: 1, area: 38, price: 5_000_000 })
+  }
+
+  it('говорит, сколько таких квартир есть без придуманного ограничения', async () => {
+    await khimki()
+
+    const found = await searchApartments(testDb, { district: 'Химки', rooms: [2], areaMax: 40 })
+
+    expect(found.total).toBe(0)
+    expect(found.empty).toMatchObject({
+      place: 'Химки',
+      placeKnown: true,
+      inPlace: 3,
+      roomsInPlace: [
+        { rooms: 1, count: 1, priceMin: 7_000_000 },
+        { rooms: 2, count: 2, priceMin: 10_800_000 },
+      ],
+      rooms: [2],
+      inPlaceWithRooms: 2,
+      priceMin: 10_800_000,
+      priceMax: 11_200_000,
+      areaMin: 52,
+      areaMax: 56,
+      relaxed: [{ filter: 'площадь', total: 2 }],
+    })
+  })
+
+  it('считает снятие каждого ограничения и всех сразу', async () => {
+    await khimki()
+
+    const found = await searchApartments(testDb, { district: 'Химки', rooms: [2], areaMax: 40, priceMax: 9_000_000 })
+
+    expect(found.empty?.relaxed).toEqual([
+      // Поодиночке не спасает ни то, ни другое — а вместе открывают две квартиры.
+      { filter: 'площадь', total: 0 },
+      { filter: 'цена', total: 0 },
+      { filter: 'площадь и цена', total: 2 },
+    ])
+  })
+
+  it('на несуществующей локации отдаёт перечень настоящих', async () => {
+    await khimki()
+
+    const found = await searchApartments(testDb, { district: 'Мытищи' })
+
+    expect(found.empty?.placeKnown).toBe(false)
+    expect(found.empty?.place).toBe('Мытищи')
+    expect(found.empty?.locations.map((place) => place.name)).toEqual(['Химки', 'Звенигород'])
+  })
+
+  it('честное «нет ни одной» отличимо от «нет по этим условиям»', async () => {
+    await khimki()
+
+    const found = await searchApartments(testDb, { district: 'Звенигород', rooms: [0] })
+
+    expect(found.empty).toMatchObject({
+      placeKnown: true,
+      inPlace: 1,
+      roomsInPlace: [{ rooms: 1, count: 1, priceMin: 5_000_000 }],
+      inPlaceWithRooms: 0,
+    })
+  })
+
+  it('на непустой выдаче объяснения нет — считать нечего', async () => {
+    await khimki()
+
+    expect((await searchApartments(testDb, { district: 'Химки', rooms: [2] })).empty).toBeUndefined()
   })
 })

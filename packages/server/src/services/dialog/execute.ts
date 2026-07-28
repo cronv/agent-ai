@@ -10,12 +10,16 @@ import {
   parseRooms,
 } from '../feeds/normalize.js'
 import {
+  listCatalogLocations,
   listProjects,
   searchApartments,
   type ApartmentCard,
   type ApartmentSearchParams,
+  type CatalogLocation,
+  type EmptySearchFacts,
   type ProjectFilterParams,
 } from './apartments.js'
+import { areaRange, capitalize, millions, plural, priceRange, roomsGenitive, roomsLabel } from './wording.js'
 import { saveLeadToDatabase, validateLead, type LeadHandler, type SavedLead } from './leads.js'
 import { isToolName, type ToolName } from './tools.js'
 
@@ -104,15 +108,157 @@ async function runSearchApartments(input: Record<string, unknown>, context: Tool
     .filter((value): value is string => value !== null)
   if (projectIds.length > 0) params.projectIds = projectIds
 
-  const { total, apartments } = await searchApartments(context.db, params)
+  const { total, apartments, empty } = await searchApartments(context.db, params)
+
+  const payload: Record<string, unknown> = { total, shown: apartments.length, apartments }
+  if (empty) payload['nothing_found'] = describeEmpty(empty)
 
   return {
     name: 'search_apartments',
-    content: stringify({ total, shown: apartments.length, apartments }),
+    content: stringify(payload),
     isError: false,
     apartments,
     lead: null,
   }
+}
+
+/** Сколько локаций уходит в ответ инструмента: перечень нужен полный, но не бесконечный. */
+const LOCATIONS_IN_RESULT = 20
+
+/**
+ * Ноль с объяснением.
+ *
+ * Пустая выдача сама по себе не говорит модели ничего, кроме «ноль», и она
+ * достраивает смысл сама — обычно худшим образом: «в Химках двухкомнатных нет
+ * вообще», когда их тридцать, просто не той площади. Поэтому рядом с нулём
+ * едут цифры и готовая формулировка. Ключевое здесь — `hint`: модель повторяет
+ * то, что видит, поэтому проще дать ей верную фразу целиком, чем надеяться,
+ * что она соберёт её из полей сама.
+ */
+function describeEmpty(empty: EmptySearchFacts): Record<string, unknown> {
+  return {
+    hint: emptyHint(empty),
+    place: empty.place,
+    place_in_catalog: empty.placeKnown,
+    apartments_in_place: empty.inPlace,
+    rooms_in_place: empty.roomsInPlace.map((item) => ({
+      rooms: item.rooms,
+      count: item.count,
+      price_min: item.priceMin,
+    })),
+    cheapest_in_place: cheapestInPlace(empty),
+    cheapest_in_catalog: cheapestInCatalog(empty),
+    requested_rooms: empty.rooms,
+    requested_rooms_in_place: empty.inPlaceWithRooms,
+    price_min: empty.priceMin,
+    price_max: empty.priceMax,
+    area_min: empty.areaMin,
+    area_max: empty.areaMax,
+    found_if_filter_removed: empty.relaxed,
+    catalog_locations: toLocationList(empty.locations),
+  }
+}
+
+/** Перечень локаций в том виде, в каком его читает модель. */
+function toLocationList(locations: CatalogLocation[]): Record<string, unknown>[] {
+  return locations.slice(0, LOCATIONS_IN_RESULT).map((place) => ({
+    name: place.name,
+    apartments: place.apartmentCount,
+    rooms: place.rooms,
+    price_min: place.priceMin,
+    price_max: place.priceMax,
+  }))
+}
+
+function cheapestInPlace(empty: EmptySearchFacts): number | null {
+  const prices = empty.roomsInPlace.map((item) => item.priceMin)
+  return prices.length === 0 ? null : Math.min(...prices)
+}
+
+function cheapestInCatalog(empty: EmptySearchFacts): number | null {
+  const prices = empty.locations.map((place) => place.priceMin)
+  return prices.length === 0 ? null : Math.min(...prices)
+}
+
+/** «студии от 4,4 млн ₽ (2 шт.), однокомнатные от 5,7 млн ₽ (56 шт.)» */
+function roomsWithPrices(rooms: EmptySearchFacts['roomsInPlace']): string {
+  if (rooms.length === 0) return 'нет данных о комнатности'
+  return rooms.map((item) => `${roomsLabel(item.rooms)} от ${millions(item.priceMin)} (${item.count} шт.)`).join(', ')
+}
+
+function emptyHint(empty: EmptySearchFacts): string {
+  const where = empty.place === null ? 'в каталоге' : `в локации «${empty.place}»`
+  const sentences: string[] = []
+
+  if (!empty.placeKnown) {
+    const names = empty.locations.map((place) => place.name).join(', ')
+    sentences.push(
+      `Локации «${empty.place ?? ''}» в каталоге нет — у агентства там нет ни одного объекта.`,
+      `Скажи об этом прямо и назови те локации, которые есть: ${names}.`,
+      'Другие города не предлагай: их у агентства нет.',
+    )
+    return sentences.join(' ')
+  }
+
+  if (empty.inPlace === 0) {
+    sentences.push(`Активных квартир ${where} сейчас нет ни одной — это можно сказать без оговорок.`)
+    sentences.push('Предложи альтернативу только из перечня catalog_locations.')
+    return sentences.join(' ')
+  }
+
+  const asked = empty.rooms.length > 0 ? empty.rooms.map(roomsLabel).join(' и ') : null
+  const askedGenitive = empty.rooms.map(roomsGenitive).join(' и ')
+  const count = `${empty.inPlace} ${plural(empty.inPlace, 'квартира', 'квартиры', 'квартир')}`
+
+  if (asked !== null && empty.inPlaceWithRooms > 0) {
+    sentences.push(
+      'Ноль — это ноль по всем условиям запроса сразу, а не отсутствие таких квартир.',
+      `${capitalize(asked)} ${where} есть — ${empty.inPlaceWithRooms} ` +
+        `${plural(empty.inPlaceWithRooms, 'квартира', 'квартиры', 'квартир')}, ` +
+        `${priceRange(empty.priceMin, empty.priceMax)}, ${areaRange(empty.areaMin, empty.areaMax)}.`,
+      `Написать, что ${askedGenitive} тут нет, — прямая ложь. Отсутствие формулируй только в рамках применённых ограничений: нет не таких квартир, а таких на этих условиях.`,
+    )
+  } else if (asked !== null) {
+    sentences.push(
+      `${capitalize(askedGenitive)} ${where} действительно нет совсем — это сказать можно.`,
+      `Всего ${where} ${count}. Назови сразу, что есть, чтобы человек увидел, из чего выбирать.`,
+    )
+  } else {
+    sentences.push(`Ноль дали условия запроса, а не пустой каталог: всего ${where} ${count}.`)
+  }
+
+  const useful = empty.relaxed.filter((item) => item.total > 0)
+  if (useful.length > 0) {
+    const parts = useful.map((item) => `без ограничения «${item.filter}» — ${item.total}`)
+    sentences.push(`Сколько нашлось бы, если снять условия: ${parts.join(', ')}.`)
+    sentences.push(
+      'Повтори поиск без самого узкого условия прямо сейчас, в этом же ответе, и покажи найденное карточками. ' +
+        'Разрешения не спрашивай: «показать?» вместо карточек — это ответ ни с чем.',
+    )
+  }
+
+  // Цена «от» рядом с каждой комнатностью нужна для одного: не подсунуть
+  // человеку с бюджетом до 4 млн студии, которые начинаются с 4,4 млн.
+  if (empty.roomsInPlace.length > 0) {
+    sentences.push(
+      `Что есть ${where} по комнатностям, с ценой «от»: ${roomsWithPrices(empty.roomsInPlace)}. ` +
+        'Это наличие вообще, без учёта бюджета, площади и отделки из запроса — не выдавай его за подходящее под них.',
+    )
+  }
+
+  const floor = cheapestInPlace(empty)
+  const catalogFloor = cheapestInCatalog(empty)
+  if (floor !== null) {
+    sentences.push(
+      `Дешевле ${millions(floor)} ${where} нет ничего` +
+        (catalogFloor !== null && catalogFloor < floor
+          ? `, а во всём каталоге — дешевле ${millions(catalogFloor)}.`
+          : ', и во всём каталоге тоже.') +
+        ' Не обещай показать то, что дешевле: этого нет.',
+    )
+  }
+
+  return sentences.join(' ')
 }
 
 async function runListProjects(input: Record<string, unknown>, context: ToolContext): Promise<ToolOutcome> {
@@ -125,9 +271,24 @@ async function runListProjects(input: Record<string, unknown>, context: ToolCont
 
   const projects = await listProjects(context.db, params)
 
+  const payload: Record<string, unknown> = { found: projects.length, projects }
+  // Пустой список ЖК модель читает так же неверно, как пустую подборку, — и по
+  // тому же поводу зовёт человека в соседний город из общих знаний. Перечень
+  // локаций закрывает и этот путь.
+  if (projects.length === 0) {
+    const locations = await listCatalogLocations(context.db)
+    payload['nothing_found'] = {
+      hint:
+        locations.length === 0
+          ? 'Каталог пуст: предлагать нечего.'
+          : `Ни один ЖК не подошёл. Локации каталога, и других у агентства нет: ${locations.map((place) => place.name).join(', ')}. Города вне этого перечня не называй.`,
+      catalog_locations: toLocationList(locations),
+    }
+  }
+
   return {
     name: 'list_projects',
-    content: stringify({ found: projects.length, projects }),
+    content: stringify(payload),
     isError: false,
     apartments: [],
     lead: null,

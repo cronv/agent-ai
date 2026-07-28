@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { ingestDocument } from '../knowledge/index.js'
-import { createProject } from '../../testing/catalog.js'
+import { createApartment, createProject } from '../../testing/catalog.js'
 import { resetDatabase, testDb } from '../../testing/db.js'
 import { executeTool } from './execute.js'
 
@@ -71,5 +71,98 @@ describe('search_knowledge: параметр project_id', () => {
     )
 
     expect(fragments(outcome.content).found).toBe(1)
+  })
+})
+
+/**
+ * Пустая выдача (тикет 19). Проверяется не форма JSON, а то, что модель
+ * получает: цифры, из которых честный ответ собирается сам собой, и готовую
+ * формулировку — она повторит именно её.
+ */
+describe('search_apartments: что уходит модели вместо нуля', () => {
+  beforeEach(async () => {
+    await resetDatabase()
+  })
+
+  async function catalog(): Promise<void> {
+    const bereg = await createProject({ name: 'ЖК «Берег»', district: 'Химки' })
+    const vostok = await createProject({ name: 'ЖК «Восточный»', district: 'Звенигород' })
+    await createApartment({ projectId: bereg.id, rooms: 2, area: 52, price: 10_844_500 })
+    await createApartment({ projectId: bereg.id, rooms: 2, area: 56, price: 11_200_000 })
+    await createApartment({ projectId: vostok.id, rooms: 1, area: 38, price: 5_005_200 })
+  }
+
+  async function search(input: Record<string, unknown>): Promise<string> {
+    const outcome = await executeTool('search_apartments', input, { db: testDb, conversationId: 'c1' })
+    expect(outcome.isError).toBe(false)
+    return outcome.content
+  }
+
+  it('на узком фильтре сообщает, сколько таких квартир есть на самом деле', async () => {
+    await catalog()
+
+    const content = await search({ rooms: [2], district: 'Химки', area_max: 40 })
+
+    expect(content).toContain('"total":0')
+    expect(content).toContain('Двухкомнатные в локации «Химки» есть — 2 квартиры')
+    expect(content).toContain('от 10,8 млн ₽ до 11,2 млн ₽')
+    expect(content).toContain('без ограничения «площадь» — 2')
+    expect(content).toContain('прямая ложь')
+    expect(content).toContain('Разрешения не спрашивай')
+  })
+
+  it('на несуществующей локации перечисляет настоящие', async () => {
+    await catalog()
+
+    const content = await search({ rooms: [2], district: 'Мытищи' })
+
+    expect(content).toContain('Локации «Мытищи» в каталоге нет')
+    expect(content).toContain('Химки, Звенигород')
+    expect(content).toContain('"place_in_catalog":false')
+  })
+
+  it('настоящее отсутствие не маскирует: студий в Звенигороде нет, но есть однокомнатные', async () => {
+    await catalog()
+
+    const content = await search({ rooms: [0], district: 'Звенигород', price_max: 3_000_000 })
+
+    expect(content).toContain('Студий в локации «Звенигород» действительно нет совсем')
+    expect(content).toContain('однокомнатные от 5,0 млн ₽')
+    expect(content).toContain('"requested_rooms_in_place":0')
+  })
+
+  it('комнатности идут с ценой «от» — иначе их выдают за подходящие под бюджет', async () => {
+    const podolsk = await createProject({ name: 'ЖК «Красная горка»', district: 'Подольск' })
+    await createApartment({ projectId: podolsk.id, rooms: 0, area: 24, price: 4_435_200 })
+    await createApartment({ projectId: podolsk.id, rooms: 1, area: 34, price: 5_737_500 })
+
+    const content = await search({ rooms: [1], district: 'Подольск', price_max: 4_000_000 })
+
+    expect(content).toContain('студии от 4,4 млн ₽ (1 шт.)')
+    expect(content).toContain('Дешевле 4,4 млн ₽ в локации «Подольск» нет ничего')
+    expect(content).toContain('Не обещай показать то, что дешевле')
+    expect(content).toContain('"cheapest_in_place":4435200')
+  })
+
+  it('на непустой подборке лишнего блока нет', async () => {
+    await catalog()
+
+    expect(await search({ rooms: [2], district: 'Химки' })).not.toContain('nothing_found')
+  })
+})
+
+describe('list_projects: пустой ответ называет реальные локации', () => {
+  beforeEach(async () => {
+    await resetDatabase()
+  })
+
+  it('перечисляет локации каталога', async () => {
+    const bereg = await createProject({ name: 'ЖК «Берег»', district: 'Химки' })
+    await createApartment({ projectId: bereg.id, rooms: 2, price: 10_844_500 })
+
+    const outcome = await executeTool('list_projects', { district: 'Лобня' }, { db: testDb, conversationId: 'c1' })
+
+    expect(outcome.content).toContain('"found":0')
+    expect(outcome.content).toContain('Локации каталога, и других у агентства нет: Химки')
   })
 })
