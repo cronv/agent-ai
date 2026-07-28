@@ -140,7 +140,7 @@ async function runSearchKnowledge(input: Record<string, unknown>, context: ToolC
     return failure('search_knowledge', 'Параметр query пустой. Сформулируй запрос словами и повтори вызов.')
   }
 
-  const projectId = normalizeText(input['project_id'], 60)
+  const projectId = await resolveKnowledgeProject(context.db, normalizeText(input['project_id'], 120))
   const hits = await searchKnowledge(context.db, {
     query,
     projectId,
@@ -160,6 +160,31 @@ async function runSearchKnowledge(input: Record<string, unknown>, context: ToolC
     apartments: [],
     lead: null,
   }
+}
+
+/**
+ * `project_id` для базы знаний: идентификатор, название или ничего.
+ *
+ * Модель регулярно кладёт в этот параметр название ЖК — «Космос» вместо
+ * `cms3gz…`. Фильтр по несуществующему идентификатору отсекает все фрагменты,
+ * привязанные к комплексам, поиск возвращает пустоту, а дальше начинается
+ * ровно то, против чего написан тикет 17: условий не нашлось — модель берёт
+ * ставку из головы. Поэтому название разрешается в идентификатор, а совсем
+ * непонятное значение просто снимает фильтр: искать по всей базе знаний
+ * безопаснее, чем не искать нигде.
+ */
+async function resolveKnowledgeProject(db: Db, value: string | null): Promise<string | null> {
+  if (value === null) return null
+
+  const byId = await db.project.findUnique({ where: { id: value }, select: { id: true } })
+  if (byId) return byId.id
+
+  const byName = await db.project.findFirst({
+    where: { OR: [{ slug: value }, { name: { contains: value, mode: 'insensitive' } }] },
+    select: { id: true },
+    orderBy: { name: 'asc' },
+  })
+  return byName?.id ?? null
 }
 
 async function runSaveLead(input: Record<string, unknown>, context: ToolContext): Promise<ToolOutcome> {
