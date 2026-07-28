@@ -40,6 +40,15 @@ const ROOM_WORDS_GENITIVE = [
   'пятикомнатных',
 ]
 
+const ROOM_WORDS_SINGULAR = [
+  'студия',
+  'однокомнатная',
+  'двухкомнатная',
+  'трёхкомнатная',
+  'четырёхкомнатная',
+  'пятикомнатная',
+]
+
 /** Комнатность словами, во множественном числе. 0 — студия. */
 export function roomsLabel(rooms: number): string {
   return ROOM_WORDS[rooms] ?? `${rooms}-комнатные`
@@ -52,6 +61,15 @@ export function roomsLabel(rooms: number): string {
  */
 export function roomsGenitive(rooms: number): string {
   return ROOM_WORDS_GENITIVE[rooms] ?? `${rooms}-комнатных`
+}
+
+/**
+ * Комнатность одной конкретной квартиры: «двухкомнатная».
+ * Множественное число годится для перечня наличия, но не для той единственной,
+ * которую человек выбрал.
+ */
+export function roomsSingular(rooms: number): string {
+  return ROOM_WORDS_SINGULAR[rooms] ?? `${rooms}-комнатная`
 }
 
 /** Заглавная буква в начале фразы. */

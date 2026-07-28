@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks'
 
-import { ArrowIcon, CloseIcon, ExpandIcon, LinkIcon, PlanPlaceholderIcon } from './Icons.tsx'
+import { ArrowIcon, CheckIcon, CloseIcon, ExpandIcon, LinkIcon, PlanPlaceholderIcon } from './Icons.tsx'
 import { cardImages, cardTags, formatLocation, formatPrice, formatPricePerM2, formatTitle } from './format.ts'
 import type { ApartmentCard } from './types.ts'
 
@@ -16,21 +16,35 @@ import type { ApartmentCard } from './types.ts'
  * зато отдаёт фотографии: тогда карточка показывает первую и даёт пролистать
  * остальные. Нет ни того, ни другого — заглушка; сломанной иконки браузера
  * в дорогой витрине быть не должно.
+ *
+ * Внизу карточки две кнопки, и спорить друг с другом им нельзя. «Выбрать» —
+ * заливка акцентом: это действие ради которого всё и затевалось, менеджер
+ * узнает про выбранную квартиру. «Смотреть» — тише, оно уводит с сайта.
  */
 
 interface RailProps {
   apartments: ApartmentCard[]
   onOpenPlan: (card: ApartmentCard, index: number) => void
+  /** Идентификаторы уже выбранных квартир. */
+  selected?: string[]
+  /** Нажали «Выбрать». Не задан — кнопки выбора нет вовсе. */
+  onSelect?: (card: ApartmentCard) => void
 }
 
-export function ApartmentRail({ apartments, onOpenPlan }: RailProps) {
+export function ApartmentRail({ apartments, onOpenPlan, selected = [], onSelect }: RailProps) {
   if (apartments.length === 0) return null
 
   return (
     <div class="rail-wrap">
       <div class="rail" role="list" aria-label="Подобранные квартиры">
         {apartments.map((card) => (
-          <ApartmentCardView key={card.id} card={card} onOpenPlan={onOpenPlan} />
+          <ApartmentCardView
+            key={card.id}
+            card={card}
+            onOpenPlan={onOpenPlan}
+            chosen={selected.includes(card.id)}
+            {...(onSelect ? { onSelect } : {})}
+          />
         ))}
       </div>
     </div>
@@ -40,15 +54,17 @@ export function ApartmentRail({ apartments, onOpenPlan }: RailProps) {
 interface CardProps {
   card: ApartmentCard
   onOpenPlan: (card: ApartmentCard, index: number) => void
+  chosen?: boolean
+  onSelect?: (card: ApartmentCard) => void
 }
 
-export function ApartmentCardView({ card, onOpenPlan }: CardProps) {
+export function ApartmentCardView({ card, onOpenPlan, chosen = false, onSelect }: CardProps) {
   const tags = cardTags(card)
   const location = formatLocation(card)
   const perM2 = formatPricePerM2(card.pricePerM2)
 
   return (
-    <article class="card" role="listitem">
+    <article class={chosen ? 'card card--chosen' : 'card'} role="listitem">
       <Gallery card={card} onOpen={(index) => onOpenPlan(card, index)} />
 
       <div class="card__body">
@@ -73,12 +89,38 @@ export function ApartmentCardView({ card, onOpenPlan }: CardProps) {
           </div>
         ) : null}
 
-        {card.url ? (
-          <a class="card__link" href={card.url} target="_blank" rel="noopener noreferrer">
-            Смотреть квартиру
-            <LinkIcon size={14} />
-          </a>
-        ) : null}
+        <div class="card__actions">
+          {onSelect ? (
+            <button
+              type="button"
+              class={chosen ? 'card__pick card__pick--chosen' : 'card__pick'}
+              onClick={() => onSelect(card)}
+              disabled={chosen}
+              aria-label={chosen ? `Квартира выбрана: ${formatTitle(card)}` : `Выбрать квартиру: ${formatTitle(card)}`}
+            >
+              {chosen ? (
+                <>
+                  <CheckIcon size={15} />
+                  Выбрана
+                </>
+              ) : (
+                'Выбрать'
+              )}
+            </button>
+          ) : null}
+
+          {card.url ? (
+            <a
+              class={onSelect ? 'card__link card__link--quiet' : 'card__link'}
+              href={card.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {onSelect ? 'Смотреть' : 'Смотреть квартиру'}
+              <LinkIcon size={14} />
+            </a>
+          ) : null}
+        </div>
       </div>
     </article>
   )

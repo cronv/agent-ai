@@ -17,6 +17,10 @@ import type { ChatPhase } from './useChat.ts'
  * ниже всех ответов и выше поля ввода, и прокручивается вместе с перепиской.
  * Готовый узел приходит сюда через `contactSlot`; показывать его или нет,
  * решает `App`.
+ *
+ * Кнопки быстрых ответов — последний блок ленты, ниже ответа и выше поля
+ * ввода. Реплики на них придумала модель, виджет их не сочиняет и текст ответа
+ * не разбирает.
  */
 
 interface MessagesProps {
@@ -27,9 +31,15 @@ interface MessagesProps {
   greeting: string
   examples: string[]
   error: ChatError | null
+  /** Реплики на кнопках под последним ответом. */
+  suggestions: string[]
+  /** Идентификаторы выбранных квартир — на их карточках стоит «Выбрана». */
+  selected: string[]
   onExample: (text: string) => void
   onRetry: () => void
   onOpenPlan: (card: ApartmentCard, index: number) => void
+  /** Нажали «Выбрать» на карточке. Не задан — кнопки выбора нет. */
+  onSelect?: (card: ApartmentCard) => void
   /** Форма контакта или подтверждение отправки. */
   contactSlot?: ComponentChildren
 }
@@ -42,9 +52,12 @@ export function Messages({
   greeting,
   examples,
   error,
+  suggestions,
+  selected,
   onExample,
   onRetry,
   onOpenPlan,
+  onSelect,
   contactSlot = null,
 }: MessagesProps) {
   const empty = items.length === 0
@@ -75,10 +88,19 @@ export function Messages({
           <div class="msg msg--user" key={item.id}>
             {item.text}
           </div>
+        ) : item.kind === 'note' ? (
+          <div class={item.tone === 'bad' ? 'note note--bad' : 'note'} key={item.id} role="status">
+            {item.text}
+          </div>
         ) : (
           <div class="msg msg--bot" key={item.id}>
             <RichText text={item.text} />
-            <ApartmentRail apartments={item.apartments} onOpenPlan={onOpenPlan} />
+            <ApartmentRail
+              apartments={item.apartments}
+              onOpenPlan={onOpenPlan}
+              selected={selected}
+              {...(onSelect ? { onSelect } : {})}
+            />
             {item.failed ? <div class="msg__note">Ответ оборвался</div> : null}
           </div>
         ),
@@ -88,7 +110,12 @@ export function Messages({
       {streaming && draft ? (
         <div class="msg msg--bot" aria-live="polite" aria-atomic="false">
           <RichText text={draft.text} caret={phase === 'streaming'} />
-          <ApartmentRail apartments={draft.apartments} onOpenPlan={onOpenPlan} />
+          <ApartmentRail
+            apartments={draft.apartments}
+            onOpenPlan={onOpenPlan}
+            selected={selected}
+            {...(onSelect ? { onSelect } : {})}
+          />
         </div>
       ) : null}
 
@@ -103,6 +130,21 @@ export function Messages({
               Повторить
             </button>
           ) : null}
+        </div>
+      ) : null}
+
+      {/*
+        Кнопки быстрых ответов. Под сообщением об ошибке их нет: реплики
+        писались к ответу, которого посетитель так и не увидел. Форму контакта
+        закрывает `App` — он же и решает, показывать её.
+      */}
+      {suggestions.length > 0 && error === null ? (
+        <div class="replies" aria-label="Быстрые ответы">
+          {suggestions.map((reply) => (
+            <button type="button" class="chip" key={reply} onClick={() => onExample(reply)}>
+              {reply}
+            </button>
+          ))}
         </div>
       ) : null}
 

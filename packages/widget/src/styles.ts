@@ -205,6 +205,22 @@ export const styles = `
 }
 .msg__note { margin-top: 8px; font-size: 12.5px; color: var(--ink-3); }
 
+/* Служебная строка виджета: «передал менеджеру», «не получилось отметить».
+   Не сообщение и не ошибка — оттого без подложки пузыря и в полтона. */
+.note {
+  align-self: center;
+  max-width: 90%;
+  padding: 7px 13px;
+  border-radius: 12px;
+  background: rgba(var(--accent-rgb), .08);
+  color: var(--accent-deep);
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-align: center;
+  animation: fade-up .24s var(--ease) both;
+}
+.note--bad { background: #FFF3EE; color: #8A3A22; }
+
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
@@ -228,10 +244,19 @@ export const styles = `
 }
 @keyframes caret { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-/* ── Примеры вопросов ─────────────────────────────────────── */
+/* ── Примеры вопросов и кнопки быстрых ответов ────────────── */
 
 .examples { display: flex; flex-wrap: wrap; gap: 8px; }
 .examples__hint { width: 100%; font-size: 12.5px; color: var(--ink-3); }
+
+/* Кнопки под ответом. Появляются, когда ответ уже допечатан, поэтому
+   выезжают снизу — как продолжение сообщения, а не как всплывшее окно. */
+.replies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  animation: fade-up .26s var(--ease) both;
+}
 .chip {
   padding: 9px 14px;
   border: 1px solid var(--line);
@@ -454,22 +479,71 @@ export const styles = `
   font-size: 11.5px;
   line-height: 1.35;
 }
+/* Две кнопки в ряд: выбрать (акцент) и уйти на карточку объекта (тише).
+   Порядок и вес намеренные — выбор остаётся в чате, ссылка уводит с сайта. */
+.card__actions { display: flex; gap: 8px; margin-top: 14px; }
+
+.card__pick {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 13px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background .18s ease, transform .15s var(--ease), opacity .18s ease;
+}
+.card__pick:hover { background: var(--accent-deep); }
+.card__pick:active { transform: scale(.97); }
+.card__pick--chosen {
+  background: rgba(var(--accent-rgb), .12);
+  color: var(--accent-deep);
+  cursor: default;
+}
+.card__pick--chosen:hover { background: rgba(var(--accent-rgb), .12); }
+.card__pick:disabled { cursor: default; }
+
+.card--chosen { border-color: rgba(var(--accent-rgb), .55); }
+
 .card__link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
+  flex: 1 1 auto;
   height: 40px;
-  margin-top: 14px;
   border-radius: 13px;
   background: rgba(var(--accent-rgb), .09);
   color: var(--accent-deep);
   font-size: 13.5px;
   font-weight: 600;
   text-decoration: none;
+  white-space: nowrap;
   transition: background .18s ease, color .18s ease;
 }
 .card__link:hover { background: var(--accent); color: var(--accent-ink); }
+/* Рядом с «Выбрать» ссылка перестаёт быть главным действием: без заливки,
+   уже и тише. Отступ сверху задаёт ряд, а не сама ссылка. */
+.card__link--quiet {
+  flex: 0 0 auto;
+  padding: 0 12px;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.card__link--quiet:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
 
 /* ── Планировка крупно ────────────────────────────────────── */
 
@@ -567,6 +641,30 @@ export const styles = `
 }
 .lead__hide:hover { background: var(--surface-2); color: var(--ink); }
 .lead__hint { margin: 4px 0 0; font-size: 13px; line-height: 1.45; color: var(--ink-2); }
+
+/* Выбранная квартира в форме: человек должен видеть, за чем ему перезвонят. */
+.lead__pick {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(var(--accent-rgb), .08);
+}
+.lead__pick-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.lead__pick-text { display: flex; flex-direction: column; min-width: 0; font-size: 12.5px; color: var(--ink-2); }
+.lead__pick-text b { font-size: 13.5px; font-weight: 600; color: var(--ink); }
 
 .lead__field { display: flex; flex-direction: column; gap: 5px; margin-top: 12px; }
 .lead__label { font-size: 12.5px; color: var(--ink-3); }

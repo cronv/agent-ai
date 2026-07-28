@@ -17,7 +17,6 @@ export {
   LeadValidationError,
   buildPayload,
   describeApartment,
-  parseApartments,
   toLeadRow,
   toLeadView,
   type LeadCaptureInput,

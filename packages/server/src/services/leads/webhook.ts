@@ -27,6 +27,12 @@ export interface LeadWebhookPayload {
     page: string | null
     referrer: string | null
     utm: Record<string, string> | null
+    /**
+     * Квартиры, которые посетитель отметил кнопкой «Выбрать», — структурно.
+     * Ключ добавлен внутрь `meta`, форма payload прежняя: воркер, который про
+     * него не знает, продолжает работать как работал.
+     */
+    selected_apartments?: Record<string, unknown>[]
   }
 }
 

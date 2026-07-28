@@ -323,6 +323,37 @@ export async function searchApartments(db: Db, params: ApartmentSearchParams): P
   return { total, apartments: rows.map(toCard) }
 }
 
+/**
+ * Карточки, поднятые из Json-колонки.
+ *
+ * Одна на все места, где карточки лежат в базе: сообщение, диалог, лид.
+ * Читать их нужно осторожно — колонка могла быть записана прошлой версией
+ * схемы или руками, — и второй набор правил для того же неизбежно разошёлся
+ * бы с первым.
+ */
+export function parseApartmentCards(value: unknown): ApartmentCard[] {
+  if (!Array.isArray(value)) return []
+  return value.filter(
+    (item): item is ApartmentCard =>
+      typeof item === 'object' && item !== null && typeof (item as { id?: unknown }).id === 'string',
+  )
+}
+
+/**
+ * Одна квартира по идентификатору — той же карточкой, что и в подборке.
+ *
+ * Нужна выбору квартиры: виджет присылает только идентификатор, а всё
+ * остальное берётся из базы. Верить карточке, пришедшей из браузера, нельзя —
+ * цену в ней можно написать любую, а уедет она менеджеру.
+ *
+ * `null` означает, что лота нет или он снят с продажи: выбрать то, чего уже
+ * нет, посетитель не должен.
+ */
+export async function getApartmentCard(db: Db, id: string): Promise<ApartmentCard | null> {
+  const row = await db.apartment.findFirst({ where: { id, ...visibleApartments() }, include: CARD_INCLUDE })
+  return row ? toCard(row) : null
+}
+
 /** Место без района в каталоге. Такие лоты всё равно находятся поиском, поэтому и в перечне они видны. */
 const PLACELESS = 'Без указания района'
 

@@ -243,6 +243,17 @@ function LeadPanel({ conversation }: { conversation: ConversationDetail }): Reac
         <p className="mt-3 text-sm leading-relaxed text-muted">{lead.comment}</p>
       )}
 
+      {/* Выбранная квартира — главное в карточке контакта: с неё и начинается
+          разговор менеджера. Показанные видны ниже, в самой переписке. */}
+      {(lead.selectedApartments ?? []).length === 0 ? null : (
+        <div className="mt-4 rounded-xl border border-accent/40 bg-accent-soft p-3">
+          <p className="text-xs font-medium text-accent">
+            Выбрал {pluralize(lead.selectedApartments.length, ['квартиру', 'квартиры', 'квартир'])} кнопкой в чате
+          </p>
+          <ApartmentCards apartments={lead.selectedApartments} className="mt-2 sm:grid-cols-1" />
+        </div>
+      )}
+
       <p className="mt-3 text-xs text-faint">Оставлен {formatDateTime(lead.createdAt)}</p>
 
       {lead.webhookStatus === 'failed' ? (

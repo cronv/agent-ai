@@ -33,6 +33,9 @@ const HEADERS = [
   'Телефон',
   'Статус',
   'Комментарий',
+  // Выбранное стоит раньше просмотренного намеренно: в Excel читают левые
+  // колонки, а звонить менеджер будет про выбранную квартиру.
+  'Выбрал квартиры',
   'Смотрел квартиры',
   'Страница',
   'Источник',
@@ -52,6 +55,7 @@ export function exportLeadsCsv(leads: LeadRow[]): string {
       formatPhone(lead.phone),
       LEAD_STATUS_LABELS[lead.status],
       lead.comment ?? '',
+      lead.selectedApartments.map(describeApartment).join('\n'),
       lead.apartments.map(describeApartment).join('\n'),
       lead.conversation?.page ?? '',
       lead.conversation?.referrer ?? '',

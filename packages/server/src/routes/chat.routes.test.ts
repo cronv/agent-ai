@@ -11,7 +11,7 @@ import type {
 import { SettingsService } from '../services/settings/index.js'
 import { createApartment, createFeed, createProject } from '../testing/catalog.js'
 import { resetDatabase, testDb } from '../testing/db.js'
-import { resetChatRateLimits } from './chat.routes.js'
+import { CHAT_SELECT_RULES, resetChatRateLimits } from './chat.routes.js'
 
 /**
  * Публичное API чата целиком: от тела запроса до событий на проводе.
@@ -330,6 +330,133 @@ describe('публичное API чата', () => {
     expect(response.statusCode).toBe(400)
   })
 
+  // ── Выбор квартиры ───────────────────────────────────────
+
+  async function seedApartment(): Promise<string> {
+    const feed = await createFeed()
+    const project = await createProject({ name: 'ЖК «Космос»', district: 'Химки' })
+    const apartment = await createApartment({
+      feedId: feed.id,
+      projectId: project.id,
+      rooms: 2,
+      area: 54.3,
+      price: 16_400_000,
+    })
+    return apartment.id
+  }
+
+  it('записывает выбор квартиры и оставляет реплику в переписке', async () => {
+    const apartmentId = await seedApartment()
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/chat/select',
+      payload: { sessionId: SESSION, apartmentId, pageUrl: 'https://site.ru/zhk' },
+    })
+
+    expect(response.statusCode).toBe(200)
+    const body = response.json<{ selected: boolean; sentToManager: boolean; text: string }>()
+    expect(body.selected).toBe(true)
+    // Контакта ещё нет — менеджеру пока нечего слать, форму откроет виджет.
+    expect(body.sentToManager).toBe(false)
+    expect(body.text).toContain('Выбрал: двухкомнатная, 54,3 м², ЖК «Космос»')
+
+    const history = await app.inject({ method: 'GET', url: `/api/chat/${SESSION}` })
+    const stored = history.json<{
+      messages: { role: string; content: string }[]
+      selectedApartments: { id: string }[]
+    }>()
+    expect(stored.messages[0]?.role).toBe('user')
+    expect(stored.messages[0]?.content).toContain('Выбрал:')
+    // Вернувшись на страницу, виджет видит, что уже выбрано.
+    expect(stored.selectedApartments.map((card) => card.id)).toEqual([apartmentId])
+  })
+
+  it('повторный выбор той же квартиры не дублирует ни реплику, ни отметку', async () => {
+    const apartmentId = await seedApartment()
+    const payload = { sessionId: SESSION, apartmentId }
+
+    await app.inject({ method: 'POST', url: '/api/chat/select', payload })
+    const again = await app.inject({ method: 'POST', url: '/api/chat/select', payload })
+
+    expect(again.statusCode).toBe(200)
+    expect(again.json<{ selected: boolean; duplicate: boolean }>()).toMatchObject({
+      selected: false,
+      duplicate: true,
+    })
+
+    const history = await app.inject({ method: 'GET', url: `/api/chat/${SESSION}` })
+    expect(history.json<{ messages: unknown[] }>().messages).toHaveLength(1)
+  })
+
+  it('с уже оставленным контактом выбор уходит менеджеру сразу', async () => {
+    const apartmentId = await seedApartment()
+    await app.inject({
+      method: 'POST',
+      url: '/api/lead',
+      payload: { sessionId: SESSION, name: 'Иван', phone: '+79123456789', consent: true },
+    })
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/chat/select',
+      payload: { sessionId: SESSION, apartmentId },
+    })
+
+    expect(response.json<{ sentToManager: boolean }>().sentToManager).toBe(true)
+
+    const conversation = await testDb.conversation.findUniqueOrThrow({ where: { sessionId: SESSION } })
+    const lead = await testDb.lead.findFirstOrThrow({ where: { conversationId: conversation.id } })
+    const selected = lead.selectedApartments as { id: string }[] | null
+    expect(selected?.map((card) => card.id)).toEqual([apartmentId])
+  })
+
+  it('выключенный виджет не принимает и выбор квартиры', async () => {
+    const apartmentId = await seedApartment()
+    await settings.set('widget_enabled', false)
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/chat/select',
+      payload: { sessionId: SESSION, apartmentId },
+    })
+
+    await settings.set('widget_enabled', true)
+    expect(response.statusCode).toBe(403)
+    expect(response.json<{ error: string }>().error).toBe('widget_disabled')
+    // Ни диалога, ни сообщения выключенный виджет не заводит.
+    expect(await testDb.conversation.count()).toBe(0)
+  })
+
+  it('режет накрутку выбором: маршрут пишет в базу и дёргает вебхук', async () => {
+    const apartmentId = await seedApartment()
+    const payload = { sessionId: SESSION, apartmentId }
+
+    // Первый выбор проходит, дальше идут дубли — счётчик они тратят так же.
+    let last = { statusCode: 200 }
+    for (let attempt = 0; attempt < CHAT_SELECT_RULES[0]!.limit + 1; attempt += 1) {
+      last = await app.inject({ method: 'POST', url: '/api/chat/select', payload })
+    }
+
+    expect(last.statusCode).toBe(429)
+  })
+
+  it('отвергает несуществующую квартиру и негодный запрос', async () => {
+    const missing = await app.inject({
+      method: 'POST',
+      url: '/api/chat/select',
+      payload: { sessionId: SESSION, apartmentId: 'nosuchlot' },
+    })
+    expect(missing.statusCode).toBe(404)
+
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/api/chat/select',
+      payload: { sessionId: 'short', apartmentId: 'x' },
+    })
+    expect(bad.statusCode).toBe(400)
+  })
+
   // ── Конфиг виджета ───────────────────────────────────────
 
   it('отдаёт публичные настройки виджета без авторизации', async () => {
@@ -350,6 +477,7 @@ describe('публичное API чата', () => {
       greeting: 'Здравствуйте!',
       exampleQuestions: ['Что есть до 10 млн?'],
       privacyPolicyUrl: null,
+      quickReplies: true,
       humanRhythm: true,
       typingSpeed: 32,
       thinkDelayMs: 3500,

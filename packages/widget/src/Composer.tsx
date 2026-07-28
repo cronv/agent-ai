@@ -19,9 +19,14 @@ interface ComposerProps {
   disabled: boolean
   autoFocus: boolean
   onSend: (text: string) => void
+  /**
+   * Человек начал писать своё. По этому гаснут кнопки быстрых ответов: он уже
+   * выбрал печатать, и предложенные реплики только отнимают у него место.
+   */
+  onType?: () => void
 }
 
-export function Composer({ disabled, autoFocus, onSend }: ComposerProps) {
+export function Composer({ disabled, autoFocus, onSend, onType }: ComposerProps) {
   const [value, setValue] = useState('')
   const field = useRef<HTMLTextAreaElement>(null)
 
@@ -58,8 +63,10 @@ export function Composer({ disabled, autoFocus, onSend }: ComposerProps) {
         aria-label="Сообщение ассистенту"
         value={value}
         onInput={(event) => {
-          setValue((event.target as HTMLTextAreaElement).value)
+          const next = (event.target as HTMLTextAreaElement).value
+          setValue(next)
           resize()
+          if (next.trim() !== '') onType?.()
         }}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.shiftKey) {

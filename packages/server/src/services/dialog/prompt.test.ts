@@ -39,6 +39,8 @@ function build(overrides: Partial<PromptContext> = {}): string {
     messagesSinceApartments: 0,
     contactThreshold: 2,
     leadCaptured: false,
+    quickReplies: false,
+    apartmentsChosen: 0,
     ...overrides,
   })
 }
@@ -106,5 +108,26 @@ describe('buildSystemPrompt: локации каталога', () => {
     expect(system).toContain('27 июля 2026 года')
     expect(system).toContain('В каталоге 7 активных ЖК')
     expect(system).toContain('Подборку ты ещё не показывал')
+  })
+})
+
+describe('buildSystemPrompt: кнопки и выбранные квартиры', () => {
+  it('правила про кнопки появляются только вместе с инструментом', () => {
+    expect(build({ quickReplies: false })).not.toContain('Кнопки быстрых ответов')
+
+    const system = build({ quickReplies: true })
+    expect(system).toContain('Кнопки быстрых ответов')
+    // Главное правило — не отвечать одними кнопками: без текста посетитель
+    // видит пустое сообщение.
+    expect(system).toContain('Кнопки не заменяют ответ')
+    expect(system).toContain('ровно один вызов suggest_replies')
+  })
+
+  it('выбранные квартиры попадают в контекст разговора', () => {
+    expect(build({ apartmentsChosen: 0 })).not.toContain('отметил кнопкой «Выбрать»')
+
+    const system = build({ apartmentsChosen: 2 })
+    expect(system).toContain('отметил кнопкой «Выбрать» 2 квартиры')
+    expect(system).toContain('не начинай подбор заново')
   })
 })

@@ -226,6 +226,9 @@ export function LeadsPage(): ReactElement {
               <THead>
                 <TH>Контакт</TH>
                 <TH>Телефон</TH>
+                {/* Выбранное и показанное — разные колонки намеренно: показали
+                    пять, выбрал одну, и звонить надо про неё. */}
+                <TH align="right">Выбрал</TH>
                 <TH align="right">Смотрел</TH>
                 <TH>Источник</TH>
                 <TH>Оставлен</TH>
@@ -268,6 +271,7 @@ function LeadTableRow({
   const [saving, setSaving] = useState(false)
 
   const failedWebhook = lead.webhookStatus === 'failed'
+  const selected = lead.selectedApartments?.length ?? 0
   const page = shortUrl(lead.conversation?.page ?? null)
   const utm = utmSummary(lead.conversation?.utm ?? null)
 
@@ -314,6 +318,16 @@ function LeadTableRow({
               </Badge>
             ) : null}
           </span>
+        </TD>
+
+        <TD align="right" numeric>
+          {selected === 0 ? (
+            <span className="text-faint">—</span>
+          ) : (
+            <span className="font-semibold text-accent" title="Отметил кнопкой «Выбрать» на карточке">
+              {formatNumber(selected)}
+            </span>
+          )}
         </TD>
 
         <TD align="right" numeric className="text-muted">
@@ -363,7 +377,7 @@ function LeadTableRow({
       */}
       {open ? (
         <tr className="border-b border-line last:border-0">
-          <td colSpan={6} className="bg-canvas px-4 py-4">
+          <td colSpan={7} className="bg-canvas px-4 py-4">
             <LeadDetails lead={lead} />
           </td>
         </tr>
@@ -411,6 +425,8 @@ function StatusSelect({
 }
 
 function LeadDetails({ lead }: { lead: LeadRow }): ReactElement {
+  const selected = lead.selectedApartments ?? []
+
   return (
     <div className="flex flex-col gap-4 py-1">
       <div className="flex flex-wrap items-center gap-2">
@@ -429,6 +445,18 @@ function LeadDetails({ lead }: { lead: LeadRow }): ReactElement {
           заявку руками.
         </Alert>
       ) : null}
+
+      {/* Выбранное стоит выше просмотренного и подписано отдельно: это то,
+          ради чего звонок и нужен, а не двадцать карточек, среди которых
+          менеджер угадывает нужную. */}
+      {selected.length === 0 ? null : (
+        <div className="rounded-xl border border-accent/40 bg-accent-soft p-3">
+          <p className="text-xs font-medium text-accent">
+            Выбрал {pluralize(selected.length, ['квартиру', 'квартиры', 'квартир'])} кнопкой в чате
+          </p>
+          <ApartmentCards apartments={selected} className="mt-2 max-w-3xl" />
+        </div>
+      )}
 
       {lead.comment === null ? null : (
         <div>

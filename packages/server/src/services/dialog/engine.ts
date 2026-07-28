@@ -19,7 +19,8 @@ import { buildHistory, trimHistory, type StoredToolCall } from './history.js'
 import type { LeadHandler, SavedLead } from './leads.js'
 import { chooseModel } from './model.js'
 import { buildSystemPrompt } from './prompt.js'
-import { DIALOG_TOOLS } from './tools.js'
+import { listSelected } from './selection.js'
+import { dialogTools } from './tools.js'
 
 /**
  * Движок диалога.
@@ -27,7 +28,7 @@ import { DIALOG_TOOLS } from './tools.js'
  *   const engine = new DialogEngine({ db: app.prisma, settings: app.settings })
  *
  *   for await (const event of engine.reply({ conversationId, message })) {
- *     // event.type: 'text' | 'tool' | 'apartments' | 'lead' | 'error' | 'done'
+ *     // event.type: 'text' | 'tool' | 'apartments' | 'suggestions' | 'lead' | 'error' | 'done'
  *   }
  *
  * Наружу движок отдаёт поток событий, а не готовую строку: HTTP-слой (тикет 06)
@@ -81,6 +82,8 @@ export type DialogEvent =
   | { type: 'tool'; name: string; input: unknown }
   /** Карточки квартир — виджет рисует их, не разбирая текст модели. */
   | { type: 'apartments'; apartments: ApartmentCard[] }
+  /** Реплики для кнопок быстрого ответа под сообщением. */
+  | { type: 'suggestions'; options: string[] }
   /** Контакт сохранён. */
   | { type: 'lead'; lead: SavedLead }
   /** Не получилось. Текст уже пригоден для показа человеку. */
@@ -92,6 +95,8 @@ export interface DialogReply {
   messageId: string
   text: string
   apartments: ApartmentCard[]
+  /** Реплики для кнопок; пустой список — кнопок не будет. */
+  suggestions: string[]
   toolCalls: StoredToolCall[]
   lead: SavedLead | null
   model: string
@@ -110,6 +115,11 @@ export const TOOL_LIMIT_MESSAGE =
   'Лимит обращений к базе за одно сообщение исчерпан. Ответь тем, что уже нашёл, и предложи уточнить запрос.'
 
 const DEFAULT_MAX_TOKENS = 4096
+
+/** Сказал ли ассистент хоть слово: по этому решается, закончен ли ход. */
+function answered(text: string): boolean {
+  return text.trim() !== ''
+}
 
 export class DialogEngine {
   private readonly db: Db
@@ -152,17 +162,19 @@ export class DialogEngine {
       'model_default',
       'model_escalation',
       'max_tool_calls',
+      'quick_replies_enabled',
     )
 
     if (text !== '') {
       await appendMessage(this.db, { conversationId, role: 'user', content: text })
     }
 
-    const [context, projectCount, knowledgeDocs, locations] = await Promise.all([
+    const [context, projectCount, knowledgeDocs, locations, selected] = await Promise.all([
       loadDialogContext(this.db, conversationId),
       this.db.project.count({ where: { isActive: true } }),
       this.db.knowledgeDoc.count({ where: { status: 'ready' } }),
       listCatalogLocations(this.db),
+      listSelected(this.db, conversationId),
     ])
 
     const system = buildSystemPrompt({
@@ -176,6 +188,8 @@ export class DialogEngine {
       messagesSinceApartments: context.messagesSinceApartments,
       contactThreshold: config.contact_request_threshold,
       leadCaptured: context.leadCaptured,
+      quickReplies: config.quick_replies_enabled,
+      apartmentsChosen: selected.length,
     })
 
     const choice = chooseModel(text, {
@@ -187,6 +201,7 @@ export class DialogEngine {
     const collected = {
       text: '',
       apartments: [] as ApartmentCard[],
+      suggestions: [] as string[],
       toolCalls: [] as StoredToolCall[],
       lead: null as SavedLead | null,
       usage: { inputTokens: 0, outputTokens: 0 } as ModelUsage,
@@ -216,7 +231,7 @@ export class DialogEngine {
           maxTokens: this.maxTokens,
           system,
           messages,
-          tools: DIALOG_TOOLS,
+          tools: dialogTools(config.quick_replies_enabled),
         })) {
           if (event.type === 'text') {
             collected.text += event.text
@@ -242,7 +257,34 @@ export class DialogEngine {
         messages.push({ role: 'assistant', content: reply.content })
         const results: ModelBlock[] = []
 
+        // `suggest_replies` в базу не ходит и лимит обращений не тратит: это
+        // не источник данных, а способ закончить ход.
+        const onlySuggestions = calls.every((call) => call.name === 'suggest_replies')
+
         for (const call of calls) {
+          if (call.name === 'suggest_replies') {
+            const outcome = await executeTool(call.name, call.input, { db: this.db, conversationId })
+            if (outcome.suggestions.length > 0) {
+              collected.suggestions = outcome.suggestions
+              yield { type: 'suggestions', options: outcome.suggestions }
+            }
+            // Кнопки вместо ответа — пустое сообщение для посетителя. Модель
+            // так делает: приняв короткую реплику («Июнь подходит») за конец
+            // разговора, она заканчивает ход одними кнопками. Тогда результат
+            // инструмента прямо говорит, чего не хватает, и ход продолжается.
+            const content = answered(collected.text)
+              ? outcome.content
+              : JSON.stringify({
+                  accepted: outcome.suggestions.length,
+                  error:
+                    'Кнопки приняты, но ответа посетителю ты так и не написал — он видит пустое сообщение. ' +
+                    'Напиши ответ словами прямо сейчас и вызови suggest_replies ещё раз вместе с ним.',
+                })
+            results.push({ type: 'tool_result', toolUseId: call.id, content })
+            collected.toolCalls.push({ id: call.id, name: call.name, input: call.input, result: content })
+            continue
+          }
+
           if (toolBudget <= 0) {
             const content = JSON.stringify({ error: TOOL_LIMIT_MESSAGE })
             results.push({ type: 'tool_result', toolUseId: call.id, content, isError: true })
@@ -284,6 +326,11 @@ export class DialogEngine {
           })
         }
 
+        // Ход закончен: модель сказала своё и попросила нарисовать кнопки —
+        // просить у неё больше нечего, лишний запрос стоил бы секунды ожидания
+        // на каждом ответе.
+        if (onlySuggestions && answered(collected.text)) break
+
         messages.push({ role: 'user', content: results })
       }
     } catch (error) {
@@ -296,6 +343,10 @@ export class DialogEngine {
       // Уже сгенерированный текст выбрасываем: договаривать оборванную фразу
       // хуже, чем честно сказать, что не получилось.
       collected.text = modelError.userMessage
+      // Кнопки под сообщением об ошибке предлагали бы продолжить разговор,
+      // которого не было: реплики придуманы к ответу, которого посетитель
+      // так и не увидел.
+      collected.suggestions = []
       yield { type: 'error', message: modelError.userMessage }
     }
 
@@ -317,6 +368,7 @@ export class DialogEngine {
         messageId: saved.id,
         text: finalText,
         apartments: collected.apartments,
+        suggestions: collected.suggestions,
         toolCalls: collected.toolCalls,
         lead: collected.lead,
         model: collected.model,

@@ -1,9 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify'
 
 import type { Db } from '../../db/prisma.js'
-import type { ApartmentCard } from '../../services/dialog/apartments.js'
+import { parseApartmentCards, type ApartmentCard } from '../../services/dialog/apartments.js'
 import { parseToolCalls } from '../../services/dialog/conversations.js'
-import { parseApartments, toLeadView, formatPhone, phoneSearchFragments } from '../../services/leads/index.js'
+import { toLeadView, formatPhone, phoneSearchFragments } from '../../services/leads/index.js'
 import type { LeadView } from '../../services/leads/index.js'
 
 /**
@@ -334,7 +334,7 @@ export async function getConversation(db: Db, id: string): Promise<ConversationD
     id: row.id,
     role: row.role,
     content: row.content,
-    apartments: parseApartments(row.apartments),
+    apartments: parseApartmentCards(row.apartments),
     tools: parseToolCalls(row.toolCalls).map((call) => ({
       id: call.id,
       name: call.name,

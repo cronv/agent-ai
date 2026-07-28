@@ -11,6 +11,11 @@ import type { Connect, Plugin } from 'vite'
  *
  * Живёт только в режиме разработки (`apply: 'serve'`) и в бандл не попадает.
  *
+ * Кнопки быстрых ответов приходят событием `suggestions` — так же, как на
+ * сервере: их придумывает модель, виджет ответ по разделителям не разбирает.
+ * `POST /api/chat/select` отмечает квартиру выбранной: первый раз — с формой
+ * контакта, после сохранённого лида — сразу «передал менеджеру».
+ *
  * Слова-переключатели для демонстрации:
  *   «ошибка»  — сбой модели: событие error и кнопка «Повторить»;
  *   «молчок»  — обрыв соединения без `done`;
@@ -161,6 +166,7 @@ const CONFIG = {
     'Сравните два ЖК по срокам сдачи',
   ],
   privacyPolicyUrl: 'https://example.com/privacy',
+  quickReplies: true,
   humanRhythm: true,
   typingSpeed: 32,
   thinkDelayMs: 3500,
@@ -188,6 +194,9 @@ interface StoredLead {
 /** Лид на сессию: второй раз обновляется тот же, как в настоящей базе. */
 const leads = new Map<string, StoredLead>()
 
+/** Что посетитель отметил кнопкой «Выбрать». Повтор не дублируется. */
+const selections = new Map<string, Set<string>>()
+
 export function mockApi(): Plugin {
   return {
     name: 'novostroyki-demo-api',
@@ -214,7 +223,13 @@ export function mockApi(): Plugin {
             conversationId: history.has(sessionId) ? 'demo-conversation' : null,
             startedAt: new Date().toISOString(),
             messages: history.get(sessionId) ?? [],
+            selectedApartments: [...(selections.get(sessionId) ?? [])].map((id) => ({ id })),
           })
+          return
+        }
+
+        if (request.method === 'POST' && url.startsWith('/chat/select')) {
+          await selectApartment(request, response)
           return
         }
 
@@ -288,6 +303,7 @@ async function streamAnswer(request: Connect.IncomingMessage, response: import('
     }
 
     remember(sessionId, { role: 'assistant', content: asking.join(''), apartments: [] })
+    // Кнопок у формы контакта нет: от человека там ждут имя и телефон.
     send('done', { reply: { failed: false, messageId: `m-${Date.now()}` } })
     response.end()
     return
@@ -329,6 +345,14 @@ async function streamAnswer(request: Connect.IncomingMessage, response: import('
     role: 'assistant',
     content: reply.join(''),
     apartments: knowledge ? [] : APARTMENTS,
+  })
+
+  // Реплики для кнопок приходят так же, как на сервере: структурно, отдельным
+  // событием. Виджет придержит их до конца печати.
+  send('suggestions', {
+    options: knowledge
+      ? ['Есть ли рассрочка?', 'Что с отделкой?', 'Хочу расчёт платежа']
+      : ['Покажи подешевле', 'Другой район', 'Хочу посмотреть'],
   })
 
   send('done', { reply: { failed: false, messageId: `m-${Date.now()}` } })
@@ -407,6 +431,39 @@ async function saveLead(request: Connect.IncomingMessage, response: import('node
   // eslint-disable-next-line no-console
   console.log(`[demo] лид ${existing ? 'обновлён' : 'сохранён'}: ${lead.name}, ${lead.phoneFormatted}`)
   json(response, { lead }, 201)
+}
+
+/**
+ * `POST /api/chat/select` — та же логика, что на сервере: карточка берётся
+ * по идентификатору, повтор не дублируется, а ответ говорит виджету, ушло ли
+ * это менеджеру или ещё нужна форма контакта.
+ */
+async function selectApartment(request: Connect.IncomingMessage, response: import('node:http').ServerResponse) {
+  const body = (await readJson(request)) as { sessionId?: string; apartmentId?: string }
+  const sessionId = body.sessionId ?? 'demo'
+  const apartment = APARTMENTS.find((item) => item.id === body.apartmentId)
+
+  if (!apartment) {
+    json(response, { error: 'unknown_apartment', message: 'Такой квартиры в каталоге нет' }, 404)
+    return
+  }
+
+  const chosen = selections.get(sessionId) ?? new Set<string>()
+  selections.set(sessionId, chosen)
+
+  if (chosen.has(apartment.id)) {
+    json(response, { selected: false, duplicate: true, sentToManager: false })
+    return
+  }
+  chosen.add(apartment.id)
+
+  const rooms = apartment.rooms === 0 ? 'студия' : `${apartment.rooms}-комнатная`
+  const text = `Выбрал: ${rooms}, ${apartment.area} м², ${apartment.projectName}, ${(apartment.price / 1_000_000)
+    .toFixed(1)
+    .replace('.', ',')} млн ₽`
+  remember(sessionId, { role: 'user', content: text, apartments: [] })
+
+  json(response, { selected: true, duplicate: false, sentToManager: leads.has(sessionId), text })
 }
 
 function remember(sessionId: string, message: Omit<StoredMessage, 'id' | 'createdAt'>): void {

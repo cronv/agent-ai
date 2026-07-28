@@ -5,8 +5,8 @@ import { Composer } from './Composer.tsx'
 import { ContactDone, ContactForm } from './ContactForm.tsx'
 import { ChatIcon, CloseIcon, PhoneIcon } from './Icons.tsx'
 import { Messages } from './Messages.tsx'
-import { DEFAULT_CONFIG, createApi } from './api.ts'
-import { getSessionId, hasSavedLead, markLeadSaved } from './session.ts'
+import { ChatApiError, DEFAULT_CONFIG, createApi } from './api.ts'
+import { getSessionId, hasSavedLead, markLeadSaved, readPageContext } from './session.ts'
 import { buildAccentTheme } from './theme.ts'
 import type { ApartmentCard, SavedLead, WidgetConfig } from './types.ts'
 import { useChat } from './useChat.ts'
@@ -28,6 +28,7 @@ type ContactStage = 'hidden' | 'form' | 'done'
 export function App({ apiBase }: { apiBase: string }) {
   const api = useMemo(() => createApi(apiBase), [apiBase])
   const sessionId = useMemo(getSessionId, [])
+  const page = useMemo(readPageContext, [])
 
   const [config, setConfig] = useState<WidgetConfig>(DEFAULT_CONFIG)
   const chat = useChat({ api, sessionId, pacing: config.rhythm })
@@ -37,6 +38,9 @@ export function App({ apiBase }: { apiBase: string }) {
   const [plan, setPlan] = useState<{ card: ApartmentCard; index: number } | null>(null)
   const [contact, setContact] = useState<ContactStage>('hidden')
   const [lead, setLead] = useState<SavedLead | null>(null)
+  // Квартира, которую человек выбрал и ради которой открылась форма: в ней
+  // должно быть видно, за чем именно к нему перезвонят.
+  const [chosen, setChosen] = useState<ApartmentCard | null>(null)
 
   const mobile = useIsMobile()
   const viewport = useVisualViewport(open && mobile)
@@ -104,7 +108,16 @@ export function App({ apiBase }: { apiBase: string }) {
     const node = scroller.current
     if (!node || !pinned.current) return
     node.scrollTop = node.scrollHeight
-  }, [chat.items, chat.draft?.text, chat.draft?.apartments.length, chat.phase, chat.error, contact, open])
+  }, [
+    chat.items,
+    chat.draft?.text,
+    chat.draft?.apartments.length,
+    chat.phase,
+    chat.error,
+    chat.suggestions,
+    contact,
+    open,
+  ])
 
   const onScroll = (): void => {
     const node = scroller.current
@@ -138,6 +151,7 @@ export function App({ apiBase }: { apiBase: string }) {
 
   const askContact = useCallback((): void => {
     pinned.current = true
+    setChosen(null)
     setContact('form')
   }, [])
 
@@ -154,6 +168,65 @@ export function App({ apiBase }: { apiBase: string }) {
     if (contact === 'done') setContact('hidden')
     chat.send(text)
   }
+
+  // ── Выбор квартиры ─────────────────────────────────────────
+
+  /**
+   * Нажали «Выбрать» на карточке.
+   *
+   * Выбор уходит на сервер всегда и первым делом — он ложится на диалог, и
+   * подхватит его хоть форма контакта, заполненная через минуту, хоть уже
+   * оставленный лид. Дальше расходятся два пути:
+   *
+   *   контакт уже есть — обновлённый лид ушёл менеджеру сам, посетителю
+   *                      остаётся подтверждение в ленте;
+   *   контакта нет     — открывается форма из тикета 09, и в ней видно, какую
+   *                      именно квартиру человек выбрал.
+   *
+   * Повторный выбор той же квартиры не дублируется: сервер отвечает, что она
+   * уже отмечена, и в ленту ничего не добавляется.
+   */
+  const choose = useCallback(
+    (card: ApartmentCard): void => {
+      pinned.current = true
+
+      void api
+        .selectApartment({
+          sessionId,
+          apartmentId: card.id,
+          pageUrl: page.pageUrl,
+          referrer: page.referrer,
+          utm: page.utm,
+        })
+        .then((result) => {
+          // Эту квартиру уже отмечали: ни реплики, ни формы. Второй раз жмут,
+          // не поняв, сработало ли, — и форма, всплывшая на повторный клик
+          // у человека с оставленным контактом, читается как «телефон не дошёл».
+          if (!result.selected) return
+
+          chat.addChoice(
+            card.id,
+            result.text,
+            result.sentToManager ? 'Передал менеджеру — он перезвонит по этой квартире.' : null,
+          )
+          if (!result.sentToManager) {
+            setChosen(card)
+            setContact('form')
+          }
+        })
+        .catch((cause: unknown) => {
+          chat.addNote(
+            cause instanceof ChatApiError
+              ? cause.message
+              : 'Не получилось отметить квартиру. Попробуйте ещё раз.',
+            'bad',
+          )
+          // Форму не открываем: обещать звонок по квартире, которую сервер не
+          // принял, нельзя.
+        })
+    },
+    [api, chat, page, sessionId],
+  )
 
   if (!config.enabled) return null
 
@@ -199,15 +272,21 @@ export function App({ apiBase }: { apiBase: string }) {
               greeting={config.greeting}
               examples={config.exampleQuestions}
               error={chat.error}
+              // У открытой формы контакта кнопок нет: от человека там ждут
+              // имя и телефон, а не следующий вопрос про подборку.
+              suggestions={config.quickReplies && contact !== 'form' ? chat.suggestions : []}
+              selected={chat.selected}
               onExample={send}
               onRetry={chat.retry}
               onOpenPlan={(card, index) => setPlan({ card, index })}
+              onSelect={choose}
               contactSlot={
                 contact === 'form' ? (
                   <ContactForm
                     api={api}
                     sessionId={sessionId}
                     privacyPolicyUrl={config.privacyPolicyUrl}
+                    apartment={chosen}
                     onSaved={onLeadSaved}
                     onClose={() => setContact('hidden')}
                   />
@@ -225,7 +304,9 @@ export function App({ apiBase }: { apiBase: string }) {
                 Оставить контакт
               </button>
             ) : null}
-            <Composer disabled={chat.busy} autoFocus={open} onSend={send} />
+            {/* Поле ввода на месте всегда: кнопки — ускорение, а не рельсы.
+                Как только человек начал печатать своё, они гаснут. */}
+            <Composer disabled={chat.busy} autoFocus={open} onSend={send} onType={chat.hideSuggestions} />
             <p class="foot__note">
               Отвечает ИИ-ассистент — детали уточняйте у менеджера.
               {config.privacyPolicyUrl ? (

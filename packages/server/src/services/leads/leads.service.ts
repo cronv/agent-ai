@@ -1,8 +1,9 @@
 import type { Lead, LeadStatus, Prisma } from '@prisma/client'
 
 import type { Db } from '../../db/prisma.js'
-import type { ApartmentCard } from '../dialog/apartments.js'
+import { parseApartmentCards, type ApartmentCard } from '../dialog/apartments.js'
 import { ensureConversation } from '../dialog/conversations.js'
+import { listSelected } from '../dialog/selection.js'
 import type { LeadHandler, LeadInput } from '../dialog/leads.js'
 import type { SettingsService } from '../settings/index.js'
 import { formatPhone, normalizePhone, phoneSearchFragments } from './phone.js'
@@ -51,6 +52,11 @@ export interface LeadView {
   consentAt: Date | null
   /** Квартиры, показанные в диалоге к моменту оставления контакта. */
   apartments: ApartmentCard[]
+  /**
+   * Квартиры, которые посетитель отметил кнопкой «Выбрать».
+   * Показанное и выбранное — разные вещи: показали пять, выбрал одну.
+   */
+  selectedApartments: ApartmentCard[]
   webhookStatus: 'skipped' | 'sent' | 'failed'
   /** Текст ошибки последней отправки — админка показывает его в карточке. */
   webhookError: string | null
@@ -183,6 +189,7 @@ export class LeadService {
 
     const conversationId = await this.resolveConversationId(input, db)
     const apartments = conversationId === null ? [] : await this.apartmentsShown(conversationId, db)
+    const selected = conversationId === null ? [] : await this.apartmentsSelected(conversationId, db)
 
     const data = {
       name,
@@ -190,6 +197,7 @@ export class LeadService {
       comment,
       consentAt: new Date(),
       apartments: apartments as unknown as Prisma.InputJsonValue,
+      selectedApartments: selected as unknown as Prisma.InputJsonValue,
     }
 
     // Тот же человек в той же сессии — это тот же лид. Он мог уточнить телефон
@@ -226,6 +234,34 @@ export class LeadService {
       consent: true,
     }
     return this.capture(capture, context.db ?? this.db)
+  }
+
+  /**
+   * Выбранная квартира — уже оставленному контакту.
+   *
+   *   const sent = await app.leads.attachSelection(conversationId)
+   *
+   * Человек оставил телефон, продолжил разговор и отметил ещё одну квартиру.
+   * Заводить второй лид нельзя — менеджер позвонит дважды; молчать тоже нельзя —
+   * ради этой квартиры всё и затевалось. Поэтому обновляется тот же лид и
+   * вебхук уходит повторно: на той стороне это тот же контакт с новым
+   * содержимым, а не новая заявка.
+   *
+   * `false` означает, что контакта ещё нет: выбор останется на диалоге и
+   * попадёт в лид, когда человек заполнит форму.
+   */
+  async attachSelection(conversationId: string, db: Db = this.db): Promise<boolean> {
+    const lead = await db.lead.findFirst({ where: { conversationId }, orderBy: { createdAt: 'desc' } })
+    if (!lead) return false
+
+    const selected = await this.apartmentsSelected(conversationId, db)
+    await db.lead.update({
+      where: { id: lead.id },
+      data: { selectedApartments: selected as unknown as Prisma.InputJsonValue },
+    })
+
+    this.dispatchWebhook(lead.id, db)
+    return true
   }
 
   // ── Список, статус, выгрузка ──────────────────────────────
@@ -368,23 +404,23 @@ export class LeadService {
 
     const byId = new Map<string, ApartmentCard>()
     for (const row of rows) {
-      for (const card of parseApartments(row.apartments)) {
+      for (const card of parseApartmentCards(row.apartments)) {
         byId.set(card.id, card)
       }
     }
     return [...byId.values()].slice(-MAX_LEAD_APARTMENTS)
   }
+
+  /**
+   * Квартиры, которые посетитель отметил кнопкой «Выбрать».
+   * Хранятся на диалоге: выбрать можно и до того, как оставлен контакт.
+   */
+  private async apartmentsSelected(conversationId: string, db: Db): Promise<ApartmentCard[]> {
+    return (await listSelected(db, conversationId)).slice(-MAX_LEAD_APARTMENTS)
+  }
 }
 
 // ── Разбор и сборка ──────────────────────────────────────────
-
-export function parseApartments(value: unknown): ApartmentCard[] {
-  if (!Array.isArray(value)) return []
-  return value.filter(
-    (item): item is ApartmentCard =>
-      typeof item === 'object' && item !== null && typeof (item as { id?: unknown }).id === 'string',
-  )
-}
 
 function parseUtm(value: unknown): Record<string, string> | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return null
@@ -417,7 +453,8 @@ export function toLeadView(lead: Lead): LeadView {
     comment: lead.comment,
     status: lead.status,
     consentAt: lead.consentAt,
-    apartments: parseApartments(lead.apartments),
+    apartments: parseApartmentCards(lead.apartments),
+    selectedApartments: parseApartmentCards(lead.selectedApartments),
     webhookStatus: lead.webhookStatus,
     webhookError: lead.webhookError,
     webhookAt: lead.webhookAt,
@@ -445,14 +482,23 @@ export function toLeadRow(lead: LeadWithConversation): LeadRow {
 }
 
 /**
- * Тело вебхука. Поля и их имена — контракт с amo-воркером пользователя.
+ * Тело вебхука. Поля и их имена — контракт с amo-воркером пользователя,
+ * менять их нельзя: на той стороне уже работает боевая интеграция.
  *
- * `comment` собирается из того, что написал человек, и того, что он смотрел:
- * менеджер открывает карточку в CRM и сразу видит, о каких квартирах речь,
- * не заходя в админку.
+ * `comment` собирается из того, что человек выбрал, что написал и что смотрел.
+ * Выбранное идёт первым и отдельным заголовком: менеджер открывает сделку в CRM
+ * и первой строкой видит квартиру, ради которой звонок и нужен, — а не список
+ * из двадцати просмотренных, в котором она теряется.
+ *
+ * Те же квартиры едут структурно в `meta.selected_apartments`: разобрать список
+ * из текста воркер не сможет, а положить идентификатор лота в поле сделки —
+ * вполне. Ключ добавлен внутрь `meta`, форма самого payload прежняя.
  */
 export function buildPayload(lead: LeadRow): LeadWebhookPayload {
   const parts: string[] = []
+  if (lead.selectedApartments.length > 0) {
+    parts.push('Выбрал в чате:\n' + lead.selectedApartments.map(describeApartment).join('\n'))
+  }
   if (lead.comment) parts.push(lead.comment)
   if (lead.apartments.length > 0) {
     parts.push('Смотрел в чате:\n' + lead.apartments.map(describeApartment).join('\n'))
@@ -467,7 +513,23 @@ export function buildPayload(lead: LeadRow): LeadWebhookPayload {
       page: lead.conversation?.page ?? null,
       referrer: lead.conversation?.referrer ?? null,
       utm: lead.conversation?.utm ?? null,
+      ...(lead.selectedApartments.length > 0
+        ? { selected_apartments: lead.selectedApartments.map(toWebhookApartment) }
+        : {}),
     },
+  }
+}
+
+/** Выбранная квартира структурно — чтобы воркер мог разложить её по полям сделки. */
+function toWebhookApartment(card: ApartmentCard): Record<string, unknown> {
+  return {
+    id: card.id,
+    project: card.projectName,
+    rooms: card.rooms,
+    area: card.area,
+    floor: card.floor,
+    price: card.price,
+    url: card.url,
   }
 }
 

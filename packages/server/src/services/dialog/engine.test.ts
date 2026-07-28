@@ -207,7 +207,128 @@ describe('DialogEngine', () => {
       'list_projects',
       'search_knowledge',
       'save_lead',
+      'suggest_replies',
     ])
+  })
+
+  // ── Кнопки быстрых ответов ─────────────────────────────────
+
+  it('заканчивает ход на suggest_replies и отдаёт реплики отдельным событием', async () => {
+    const { engine, model, conversationId } = await harness([
+      {
+        text: ['В Химках сейчас тридцать двухкомнатных.'],
+        tools: [{ name: 'suggest_replies', input: { options: ['Покажи подешевле', 'Другой район', 'Хочу посмотреть'] } }],
+      },
+    ])
+
+    const events = await collect(engine, conversationId, 'Двушка в Химках')
+    const suggestions = events.find((event) => event.type === 'suggestions')
+
+    expect(suggestions?.type === 'suggestions' && suggestions.options).toEqual([
+      'Покажи подешевле',
+      'Другой район',
+      'Хочу посмотреть',
+    ])
+    // Ход закончен: второго запроса к модели ради ответа на кнопки нет.
+    expect(model.requests).toHaveLength(1)
+    // И «Подбираю квартиры» под кнопки не показывается — в базу они не ходят.
+    expect(events.some((event) => event.type === 'tool')).toBe(false)
+  })
+
+  it('кнопки без ответа ход не заканчивают — иначе посетитель получит пустое сообщение', async () => {
+    const { engine, model, conversationId } = await harness([
+      // Модель приняла короткую реплику за конец разговора и ответила одними
+      // кнопками. Ход на этом заканчивать нельзя: ответа-то нет.
+      { tools: [{ name: 'suggest_replies', input: { options: ['Хочу посмотреть', 'Есть вопросы'] } }] },
+      {
+        text: ['Отлично, тогда смотрим июнь 2027.'],
+        tools: [{ name: 'suggest_replies', input: { options: ['Хочу посмотреть', 'Есть вопросы'] } }],
+      },
+    ])
+
+    const reply = await engine.replyOnce({ conversationId, message: 'Июнь подходит' })
+
+    expect(reply.text).toBe('Отлично, тогда смотрим июнь 2027.')
+    expect(reply.suggestions).toEqual(['Хочу посмотреть', 'Есть вопросы'])
+
+    // Модели прямо сказано, чего не хватает, — иначе она повторит то же самое.
+    const result = lastMessages(model.requests[1] as ModelRequest)[0]
+    expect(result?.type === 'tool_result' && result.content).toContain('ответа посетителю ты так и не написал')
+  })
+
+  it('не тратит на кнопки лимит обращений к базе', async () => {
+    await seedCatalog()
+    const { engine, settings, conversationId } = await harness([
+      { tools: [{ name: 'search_apartments', input: { rooms: [2] } }] },
+      {
+        text: ['Вот два варианта.'],
+        tools: [{ name: 'suggest_replies', input: { options: ['Подешевле', 'Другой район'] } }],
+      },
+    ])
+    await settings.set('max_tool_calls', 1)
+
+    const reply = await engine.replyOnce({ conversationId, message: 'Двушки' })
+
+    // Лимит в одно обращение израсходован поиском, а кнопки всё равно пришли.
+    expect(reply.apartments).toHaveLength(2)
+    expect(reply.suggestions).toEqual(['Подешевле', 'Другой район'])
+    expect(reply.text).toBe('Вот два варианта.')
+  })
+
+  it('выбрасывает слишком длинные и повторяющиеся варианты, а меньше двух — не показывает вовсе', async () => {
+    const { engine, conversationId } = await harness([
+      {
+        text: ['Готово.'],
+        tools: [
+          {
+            name: 'suggest_replies',
+            input: {
+              options: [
+                'Покажи подешевле',
+                'покажи подешевле',
+                'Расскажите подробнее про условия ипотеки в этом жилом комплексе',
+              ],
+            },
+          },
+        ],
+      },
+    ])
+
+    const reply = await engine.replyOnce({ conversationId, message: 'Привет' })
+
+    // Остался один пригодный вариант — одинокая кнопка не показывается.
+    expect(reply.suggestions).toEqual([])
+  })
+
+  it('не даёт модели инструмент кнопок, когда они выключены в админке', async () => {
+    const { engine, model, settings, conversationId } = await harness([{ text: ['Готово.'] }])
+    await settings.set('quick_replies_enabled', false)
+
+    const reply = await engine.replyOnce({ conversationId, message: 'Привет' })
+
+    expect(model.requests[0]?.tools.map((tool) => tool.name)).not.toContain('suggest_replies')
+    expect(model.requests[0]?.system).not.toContain('Кнопки быстрых ответов')
+    expect(reply.suggestions).toEqual([])
+  })
+
+  it('не показывает кнопки под сообщением об ошибке модели', async () => {
+    // Кнопки успели прийти первым ходом, а следом модель упала: посетитель
+    // увидит извинение, и продолжать разговор кнопками от прошлого ответа
+    // нечего.
+    const { engine, conversationId } = await harness([
+      {
+        tools: [
+          { name: 'search_apartments', input: { rooms: [2] } },
+          { name: 'suggest_replies', input: { options: ['Подешевле', 'Другой район'] } },
+        ],
+      },
+      { error: new ModelError('перегрев', MODEL_ERROR_MESSAGES.unavailable) },
+    ])
+
+    const reply = await engine.replyOnce({ conversationId, message: 'Двушки' })
+
+    expect(reply.failed).toBe(true)
+    expect(reply.suggestions).toEqual([])
   })
 
   it('обрезает длинную историю, оставляя запрос посетителя первым сообщением', async () => {

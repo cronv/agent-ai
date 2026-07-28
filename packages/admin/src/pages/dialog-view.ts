@@ -115,6 +115,12 @@ export interface LeadCard {
   status: LeadStatus
   consentAt: string | null
   apartments: ApartmentCardView[]
+  /**
+   * Квартиры, которые посетитель отметил кнопкой «Выбрать».
+   * Это не то же, что показанные: показали пять, выбрал одну — звонить
+   * менеджер будет про неё.
+   */
+  selectedApartments: ApartmentCardView[]
   webhookStatus: 'skipped' | 'sent' | 'failed'
   webhookError: string | null
   webhookAt: string | null
@@ -167,6 +173,7 @@ export const TOOL_LABELS: Record<string, string> = {
   list_projects: 'смотрел список ЖК',
   search_knowledge: 'искал в базе знаний',
   save_lead: 'сохранил контакт',
+  suggest_replies: 'предложил кнопки ответов',
 }
 
 /**

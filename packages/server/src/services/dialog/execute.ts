@@ -21,7 +21,7 @@ import {
 } from './apartments.js'
 import { areaRange, capitalize, millions, plural, priceRange, roomsGenitive, roomsLabel } from './wording.js'
 import { saveLeadToDatabase, validateLead, type LeadHandler, type SavedLead } from './leads.js'
-import { isToolName, type ToolName } from './tools.js'
+import { SUGGESTION_MAX, SUGGESTION_MAX_LENGTH, SUGGESTION_MIN, isToolName, type ToolName } from './tools.js'
 
 /**
  * Исполнение инструментов.
@@ -53,11 +53,16 @@ export interface ToolOutcome {
   /** Карточки для виджета: сохраняются в сообщение структурно. */
   apartments: ApartmentCard[]
   lead: SavedLead | null
+  /** Реплики для кнопок быстрого ответа — только у `suggest_replies`. */
+  suggestions: string[]
 }
 
 export async function executeTool(name: string, rawInput: unknown, context: ToolContext): Promise<ToolOutcome> {
   if (!isToolName(name)) {
-    return failure(name, `Инструмента «${name}» не существует. Доступны search_apartments, list_projects, search_knowledge, save_lead.`)
+    return failure(
+      name,
+      `Инструмента «${name}» не существует. Доступны search_apartments, list_projects, search_knowledge, save_lead, suggest_replies.`,
+    )
   }
 
   const input = asRecord(rawInput)
@@ -80,7 +85,55 @@ async function run(name: ToolName, input: Record<string, unknown>, context: Tool
       return runSearchKnowledge(input, context)
     case 'save_lead':
       return runSaveLead(input, context)
+    case 'suggest_replies':
+      return runSuggestReplies(input)
   }
+}
+
+/**
+ * Реплики для кнопок.
+ *
+ * Проверка здесь строгая, потому что дальше эти строки попадают человеку на
+ * кнопку и уходят обратно в диалог как его собственные слова. Длинный вариант
+ * не обрезается, а выбрасывается: обрезанная кнопка обещает одно, а отправляет
+ * другое. Если после отбраковки осталось меньше двух — кнопок не будет вовсе:
+ * одинокая кнопка выглядит как единственный допустимый ответ, а поле ввода
+ * рядом с ней — как декорация.
+ */
+function runSuggestReplies(input: Record<string, unknown>): ToolOutcome {
+  const options = pickSuggestions(input['options'])
+
+  return {
+    name: 'suggest_replies',
+    // Модель не должна получить повод отвечать на этот результат словами:
+    // её ход на нём и заканчивается.
+    content: stringify({ accepted: options.length }),
+    isError: false,
+    apartments: [],
+    lead: null,
+    suggestions: options,
+  }
+}
+
+/** Приводит то, что прислала модель, к списку пригодных для кнопки реплик. */
+export function pickSuggestions(raw: unknown): string[] {
+  const seen = new Set<string>()
+  const options: string[] = []
+
+  for (const item of toArray(raw)) {
+    if (typeof item !== 'string') continue
+    // Кавычки и маркеры списка модель иногда добавляет от себя — на кнопке
+    // они выглядят как часть реплики.
+    const text = item.trim().replace(/^[-–—•*"'«]+\s*/u, '').replace(/["'»]+$/u, '').trim()
+    if (text === '' || text.length > SUGGESTION_MAX_LENGTH) continue
+    const key = text.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    options.push(text)
+    if (options.length === SUGGESTION_MAX) break
+  }
+
+  return options.length >= SUGGESTION_MIN ? options : []
 }
 
 async function runSearchApartments(input: Record<string, unknown>, context: ToolContext): Promise<ToolOutcome> {
@@ -119,6 +172,7 @@ async function runSearchApartments(input: Record<string, unknown>, context: Tool
     isError: false,
     apartments,
     lead: null,
+    suggestions: [],
   }
 }
 
@@ -305,6 +359,7 @@ async function runListProjects(input: Record<string, unknown>, context: ToolCont
     isError: false,
     apartments: [],
     lead: null,
+    suggestions: [],
   }
 }
 
@@ -333,6 +388,7 @@ async function runSearchKnowledge(input: Record<string, unknown>, context: ToolC
     isError: false,
     apartments: [],
     lead: null,
+    suggestions: [],
   }
 }
 
@@ -374,11 +430,12 @@ async function runSaveLead(input: Record<string, unknown>, context: ToolContext)
     isError: false,
     apartments: [],
     lead,
+    suggestions: [],
   }
 }
 
 function failure(name: string, error: string): ToolOutcome {
-  return { name, content: stringify({ error }), isError: true, apartments: [], lead: null }
+  return { name, content: stringify({ error }), isError: true, apartments: [], lead: null, suggestions: [] }
 }
 
 function stringify(value: unknown): string {

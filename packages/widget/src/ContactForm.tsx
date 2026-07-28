@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
 
 import { ChatApiError, type ChatApi, type LeadField } from './api.ts'
 import { CheckIcon, CloseIcon } from './Icons.tsx'
+import { formatPrice, formatTitle } from './format.ts'
 import { PHONE_PLACEHOLDER, isPhoneComplete, maskPhone, toE164 } from './phone.ts'
 import { readPageContext } from './session.ts'
-import type { SavedLead } from './types.ts'
+import type { ApartmentCard, SavedLead } from './types.ts'
 
 /**
  * Форма контакта — блок в ленте чата, а не окно поверх неё.
@@ -33,6 +34,12 @@ interface ContactFormProps {
   api: ChatApi
   sessionId: string
   privacyPolicyUrl: string | null
+  /**
+   * Квартира, ради которой форму открыли: человек нажал «Выбрать», а контакта
+   * ещё нет. Она видна прямо в форме — иначе непонятно, за чем перезвонят.
+   * Сам выбор уже сохранён на сервере, форма его никуда не отправляет.
+   */
+  apartment?: ApartmentCard | null
   onSaved: (lead: SavedLead) => void
   onClose: () => void
 }
@@ -43,7 +50,14 @@ interface FormError {
   field: LeadField | null
 }
 
-export function ContactForm({ api, sessionId, privacyPolicyUrl, onSaved, onClose }: ContactFormProps) {
+export function ContactForm({
+  api,
+  sessionId,
+  privacyPolicyUrl,
+  apartment = null,
+  onSaved,
+  onClose,
+}: ContactFormProps) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [consent, setConsent] = useState(false)
@@ -117,7 +131,25 @@ export function ContactForm({ api, sessionId, privacyPolicyUrl, onSaved, onClose
           <CloseIcon size={15} />
         </button>
       </div>
-      <p class="lead__hint">Менеджер перезвонит, ответит по документам и забронирует подходящий вариант.</p>
+      <p class="lead__hint">
+        {apartment
+          ? 'Менеджер перезвонит по этой квартире: проверит, что она свободна, и запишет на просмотр.'
+          : 'Менеджер перезвонит, ответит по документам и забронирует подходящий вариант.'}
+      </p>
+
+      {apartment ? (
+        <div class="lead__pick">
+          <span class="lead__pick-mark" aria-hidden="true">
+            <CheckIcon size={15} />
+          </span>
+          <span class="lead__pick-text">
+            <b>{formatTitle(apartment)}</b>
+            <span>
+              {[apartment.projectName, formatPrice(apartment.price)].filter(Boolean).join(' · ')}
+            </span>
+          </span>
+        </div>
+      ) : null}
 
       <label class="lead__field">
         <span class="lead__label">Как к вам обращаться</span>

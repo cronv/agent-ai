@@ -224,6 +224,28 @@ describe('LeadService.capture', () => {
     expect(lead.apartments.map((item) => item.id)).toEqual(['apt-1', 'apt-2'])
     expect(lead.apartments[0]?.projectName).toBe('ЖК Северный')
   })
+
+  it('забирает с диалога выбранные квартиры — они хранятся отдельно от показанных', async () => {
+    const conversationId = await conversation('sess-pick')
+    await testDb.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: 'Вот варианты',
+        apartments: [card(), card({ id: 'apt-2', projectName: 'ЖК Южный' })] as never,
+      },
+    })
+    await testDb.conversation.update({
+      where: { id: conversationId },
+      data: { selectedApartments: [card({ id: 'apt-2', projectName: 'ЖК Южный' })] as never },
+    })
+
+    const leads = makeService()
+    const lead = await leads.capture({ conversationId, name: 'Иван', phone: '+79123456789', consent: true })
+
+    expect(lead.apartments.map((item) => item.id)).toEqual(['apt-1', 'apt-2'])
+    expect(lead.selectedApartments.map((item) => item.id)).toEqual(['apt-2'])
+  })
 })
 
 describe('LeadService — вебхук', () => {
@@ -277,6 +299,78 @@ describe('LeadService — вебхук', () => {
     expect(stored.webhookStatus).toBe('sent')
     expect(stored.webhookError).toBeNull()
     expect(stored.webhookAt).toBeInstanceOf(Date)
+  })
+
+  it('выбранные квартиры едут в вебхук первыми и отдельным ключом внутри meta', async () => {
+    await settings.set('lead_webhook_url', 'https://hook.example/amo')
+    const conversationId = await conversation('sess-w3')
+    await testDb.message.create({
+      data: {
+        conversationId,
+        role: 'assistant',
+        content: 'Вот варианты',
+        apartments: [card(), card({ id: 'apt-2', projectName: 'ЖК Южный' })] as never,
+      },
+    })
+    await testDb.conversation.update({
+      where: { id: conversationId },
+      data: { selectedApartments: [card({ id: 'apt-2', projectName: 'ЖК Южный' })] as never },
+    })
+
+    const mock = webhookMock()
+    const leads = makeService(mock)
+
+    await leads.capture({ conversationId, name: 'Иван', phone: '+79123456789', comment: 'Звоните после 18', consent: true })
+    await leads.whenIdle()
+
+    const payload = mock.payloads()[0]
+    const comment = payload?.comment ?? ''
+    // Первым делом менеджер видит выбранное, а уже потом комментарий и просмотры.
+    expect(comment.indexOf('Выбрал в чате:')).toBe(0)
+    expect(comment.indexOf('Выбрал в чате:')).toBeLessThan(comment.indexOf('Смотрел в чате:'))
+    expect(comment).toContain('ЖК Южный')
+
+    // Форма payload прежняя: добавился только ключ внутри meta.
+    expect(Object.keys(payload ?? {}).sort()).toEqual(['comment', 'lead_name', 'meta', 'name', 'phone'])
+    expect(payload?.meta.selected_apartments).toEqual([
+      { id: 'apt-2', project: 'ЖК Южный', rooms: 2, area: 54.2, floor: 7, price: 18_400_000, url: null },
+    ])
+  })
+
+  it('выбор после оставленного контакта обновляет тот же лид и уходит менеджеру повторно', async () => {
+    await settings.set('lead_webhook_url', 'https://hook.example/amo')
+    const conversationId = await conversation('sess-w4')
+    const mock = webhookMock()
+    const leads = makeService(mock)
+
+    const lead = await leads.capture({ conversationId, name: 'Иван', phone: '+79123456789', consent: true })
+    await leads.whenIdle()
+
+    await testDb.conversation.update({
+      where: { id: conversationId },
+      data: { selectedApartments: [card()] as never },
+    })
+    expect(await leads.attachSelection(conversationId)).toBe(true)
+    await leads.whenIdle()
+
+    // Второй лид не завёлся: менеджер не должен звонить дважды.
+    expect(await testDb.lead.count()).toBe(1)
+    expect(mock.fetchImpl).toHaveBeenCalledTimes(2)
+    expect(mock.payloads()[1]?.comment).toContain('Выбрал в чате:')
+
+    const stored = await testDb.lead.findUniqueOrThrow({ where: { id: lead.id } })
+    expect((stored.selectedApartments as { id: string }[] | null)?.[0]?.id).toBe('apt-1')
+  })
+
+  it('без оставленного контакта выбору некуда уходить', async () => {
+    await settings.set('lead_webhook_url', 'https://hook.example/amo')
+    const conversationId = await conversation('sess-w5')
+    const mock = webhookMock()
+    const leads = makeService(mock)
+
+    expect(await leads.attachSelection(conversationId)).toBe(false)
+    await leads.whenIdle()
+    expect(mock.fetchImpl).not.toHaveBeenCalled()
   })
 
   it('упавший вебхук не мешает сохранению — ошибка остаётся на лиде', async () => {

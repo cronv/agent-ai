@@ -7,6 +7,8 @@ import { RateLimiter, retryAfterSeconds } from '../services/chat/index.js'
 import {
   DialogEngine,
   ensureConversation,
+  parseApartmentCards,
+  selectApartment,
   type DialogEvent,
   type LeadHandler,
   type ModelClient,
@@ -16,6 +18,7 @@ import {
  * Публичное API чата — то, с чем работает виджет на чужом сайте.
  *
  *   POST /api/chat                 сообщение; ответ идёт потоком SSE
+ *   POST /api/chat/select          посетитель выбрал квартиру кнопкой на карточке
  *   GET  /api/chat/:sessionId      история переписки для восстановления
  *   GET  /api/widget/config        публичные настройки виджета
  *
@@ -68,9 +71,21 @@ export const CHAT_IP_RULES = [
 /** Чтение истории и конфига модель не трогает — здесь лимит только от долбёжки. */
 export const CHAT_READ_RULES = [{ limit: 120, windowMs: 60_000 }]
 
+/**
+ * Выбор квартиры. Модель он не трогает, зато пишет в базу и дёргает вебхук,
+ * так что мерить его нормой чтения нельзя. Порог выше сообщений: нажать
+ * «Выбрать» на пяти карточках подряд — обычное дело, а написать восемь
+ * сообщений за минуту — уже нет.
+ */
+export const CHAT_SELECT_RULES = [
+  { limit: 20, windowMs: 60_000 },
+  { limit: 120, windowMs: 60 * 60_000 },
+]
+
 const sessionLimiter = new RateLimiter(CHAT_SESSION_RULES)
 const ipLimiter = new RateLimiter(CHAT_IP_RULES)
 const readLimiter = new RateLimiter(CHAT_READ_RULES)
+const selectLimiter = new RateLimiter(CHAT_SELECT_RULES)
 
 /** Сессии, для которых прямо сейчас крутится поток. */
 const streaming = new Set<string>()
@@ -80,6 +95,7 @@ export function resetChatRateLimits(): void {
   sessionLimiter.reset()
   ipLimiter.reset()
   readLimiter.reset()
+  selectLimiter.reset()
   streaming.clear()
 }
 
@@ -110,15 +126,36 @@ export interface ChatRoutesOptions {
 
 // ── Разбор тела запроса ──────────────────────────────────────
 
-export interface ChatRequestBody {
+/**
+ * Откуда пришёл посетитель. Это всё, что нужно, чтобы найти или завести диалог:
+ * и сообщение, и выбор квартиры приходят с одной и той же четвёркой полей.
+ */
+export interface ConversationSource {
   sessionId: string
-  message: string
   pageUrl: string | null
   referrer: string | null
   utm: Record<string, string> | null
 }
 
+export interface ChatRequestBody extends ConversationSource {
+  message: string
+}
+
 type ParseResult = { ok: true; value: ChatRequestBody } | { ok: false; error: string }
+
+/** Идентификатор сессии или объяснение, почему он не годится. */
+function parseSessionId(raw: unknown): { ok: true; value: string } | { ok: false; error: string } {
+  const sessionId = typeof raw === 'string' ? raw.trim() : ''
+  if (sessionId.length < SESSION_ID_MIN || sessionId.length > SESSION_ID_MAX || !SESSION_ID_PATTERN.test(sessionId)) {
+    return {
+      ok: false,
+      error:
+        `sessionId должен быть случайной строкой длиной от ${SESSION_ID_MIN} до ${SESSION_ID_MAX} ` +
+        'символов (латиница, цифры, «-» и «_»). Подойдёт crypto.randomUUID().',
+    }
+  }
+  return { ok: true, value: sessionId }
+}
 
 /**
  * Всё, что пришло от виджета, — недоверенный ввод. Тексты ошибок написаны
@@ -130,15 +167,9 @@ export function parseChatBody(raw: unknown): ParseResult {
   }
   const body = raw as Record<string, unknown>
 
-  const sessionId = typeof body['sessionId'] === 'string' ? body['sessionId'].trim() : ''
-  if (sessionId.length < SESSION_ID_MIN || sessionId.length > SESSION_ID_MAX || !SESSION_ID_PATTERN.test(sessionId)) {
-    return {
-      ok: false,
-      error:
-        `sessionId должен быть случайной строкой длиной от ${SESSION_ID_MIN} до ${SESSION_ID_MAX} ` +
-        'символов (латиница, цифры, «-» и «_»). Подойдёт crypto.randomUUID().',
-    }
-  }
+  const session = parseSessionId(body['sessionId'])
+  if (!session.ok) return session
+  const sessionId = session.value
 
   const message = typeof body['message'] === 'string' ? body['message'].trim() : ''
   if (message === '') return { ok: false, error: 'Пустое сообщение' }
@@ -151,6 +182,41 @@ export function parseChatBody(raw: unknown): ParseResult {
     value: {
       sessionId,
       message,
+      pageUrl: trimmedOrNull(body['pageUrl']),
+      referrer: trimmedOrNull(body['referrer']),
+      utm: parseUtm(body['utm']),
+    },
+  }
+}
+
+/** Тело `POST /api/chat/select`. Сообщения здесь нет — есть идентификатор лота. */
+export interface SelectRequestBody extends ConversationSource {
+  apartmentId: string
+}
+
+/** Идентификатор квартиры — cuid из карточки: латиница, цифры, ничего больше. */
+const APARTMENT_ID_MAX = 64
+const APARTMENT_ID_PATTERN = /^[A-Za-z0-9_-]+$/
+
+export function parseSelectBody(raw: unknown): { ok: true; value: SelectRequestBody } | { ok: false; error: string } {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return { ok: false, error: 'Ожидался объект с полями sessionId и apartmentId' }
+  }
+  const body = raw as Record<string, unknown>
+
+  const session = parseSessionId(body['sessionId'])
+  if (!session.ok) return session
+
+  const apartmentId = typeof body['apartmentId'] === 'string' ? body['apartmentId'].trim() : ''
+  if (apartmentId === '' || apartmentId.length > APARTMENT_ID_MAX || !APARTMENT_ID_PATTERN.test(apartmentId)) {
+    return { ok: false, error: 'apartmentId должен быть идентификатором квартиры из карточки' }
+  }
+
+  return {
+    ok: true,
+    value: {
+      sessionId: session.value,
+      apartmentId,
       pageUrl: trimmedOrNull(body['pageUrl']),
       referrer: trimmedOrNull(body['referrer']),
       utm: parseUtm(body['utm']),
@@ -197,6 +263,8 @@ export function toSseEvent(event: DialogEvent): { name: string; data: Record<str
       return { name: 'tool', data: { name: event.name, input: event.input } }
     case 'apartments':
       return { name: 'apartments', data: { apartments: event.apartments } }
+    case 'suggestions':
+      return { name: 'suggestions', data: { options: event.options } }
     case 'lead':
       return { name: 'lead', data: { lead: event.lead } }
     case 'error':
@@ -239,6 +307,10 @@ const chatRoutes: FastifyPluginAsync<ChatRoutesOptions> = async (app, options) =
       greeting: values.widget_greeting,
       exampleQuestions: values.widget_example_questions,
       privacyPolicyUrl: values.privacy_policy_url === '' ? null : values.privacy_policy_url,
+      // Кнопки быстрых ответов. Настоящий выключатель — на сервере (без него
+      // модель не получает инструмента); здесь виджету сообщается то же самое,
+      // чтобы он не держал пустое место под кнопки.
+      quickReplies: values.quick_replies_enabled,
       // Ритм ответа: паузу и темп печати отмеряет виджет, здесь только цифры.
       humanRhythm: values.human_rhythm_enabled,
       typingSpeed: values.human_typing_speed,
@@ -263,7 +335,7 @@ const chatRoutes: FastifyPluginAsync<ChatRoutesOptions> = async (app, options) =
     // Неизвестная сессия — не ошибка: у посетителя мог остаться старый
     // localStorage от базы, которую с тех пор почистили.
     if (!conversation) {
-      return reply.send({ sessionId, conversationId: null, startedAt: null, messages: [] })
+      return reply.send({ sessionId, conversationId: null, startedAt: null, messages: [], selectedApartments: [] })
     }
 
     const rows = await app.prisma.message.findMany({
@@ -276,6 +348,9 @@ const chatRoutes: FastifyPluginAsync<ChatRoutesOptions> = async (app, options) =
       sessionId,
       conversationId: conversation.id,
       startedAt: conversation.startedAt.toISOString(),
+      // Уже выбранные квартиры: вернувшись на страницу, посетитель должен
+      // увидеть на карточке «Выбрана», а не выбирать её второй раз.
+      selectedApartments: parseApartmentCards(conversation.selectedApartments),
       messages: rows.reverse().map((row) => ({
         id: row.id,
         role: row.role,
@@ -366,6 +441,77 @@ const chatRoutes: FastifyPluginAsync<ChatRoutesOptions> = async (app, options) =
     return undefined
   })
 
+  // ── Выбор квартиры ─────────────────────────────────────────
+
+  /**
+   * Посетитель нажал «Выбрать» на карточке.
+   *
+   *   POST /api/chat/select
+   *   { sessionId, apartmentId, pageUrl?, referrer?, utm? }
+   *
+   * Модель здесь не участвует: это отметка, а не сообщение. Выбор ложится на
+   * диалог, в переписку добавляется реплика «Выбрал: …», и, если контакт уже
+   * оставлен, обновлённый лид тут же уходит менеджеру — повторно заполнять
+   * форму человека не заставляем.
+   *
+   * Ответ говорит виджету ровно две вещи: какая реплика встала в ленту и ушло
+   * ли это менеджеру. По второму он решает, показать подтверждение или открыть
+   * форму контакта.
+   */
+  app.post('/api/chat/select', async (request, reply) => {
+    const parsed = parseSelectBody(request.body)
+    if (!parsed.ok) {
+      return reply.code(400).send({ error: 'bad_request', message: parsed.error })
+    }
+
+    // Маршрут пишущий: диалог, сообщение, лид и вебхук. Поэтому и защита та же,
+    // что у сообщения, — по сессии и по адресу, — и выключенный виджет его тоже
+    // останавливает: прятать кнопку на клиенте мало.
+    const bySession = selectLimiter.check(`select:${parsed.value.sessionId}`)
+    if (!bySession.allowed) return tooManyRequests(reply, bySession.retryAfterMs)
+
+    const byIp = ipLimiter.check(`ip:${request.ip}`)
+    if (!byIp.allowed) return tooManyRequests(reply, byIp.retryAfterMs)
+
+    if (!(await app.settings.get('widget_enabled'))) {
+      return reply.code(403).send({ error: 'widget_disabled', message: 'Чат сейчас выключен' })
+    }
+
+    const conversation = await openConversation(parsed.value, request)
+
+    const outcome = await selectApartment(app.prisma, {
+      conversationId: conversation.id,
+      apartmentId: parsed.value.apartmentId,
+    })
+
+    if (outcome.status === 'unknown') {
+      return reply.code(404).send({ error: 'unknown_apartment', message: 'Такой квартиры в каталоге нет' })
+    }
+
+    // Повторный выбор — не ошибка и не событие: человек нажал второй раз,
+    // потому что не понял, сработало ли. Ничего не дописываем.
+    if (outcome.status === 'duplicate') {
+      return reply.send({
+        selected: false,
+        duplicate: true,
+        sentToManager: false,
+        apartment: outcome.card,
+        selectedApartments: outcome.selected,
+      })
+    }
+
+    const sentToManager = await app.leads.attachSelection(conversation.id)
+
+    return reply.send({
+      selected: true,
+      duplicate: false,
+      sentToManager,
+      text: outcome.text,
+      apartment: outcome.card,
+      selectedApartments: outcome.selected,
+    })
+  })
+
   /**
    * Диалог по сессии: находится или заводится. Данные страницы и UTM пишутся
    * только при создании — этим занимается `ensureConversation`.
@@ -373,7 +519,7 @@ const chatRoutes: FastifyPluginAsync<ChatRoutesOptions> = async (app, options) =
    * Гонка двух одновременных первых сообщений упирается в уникальный индекс
    * по `sessionId`; в этом случае повторный поиск найдёт уже созданный диалог.
    */
-  async function openConversation(body: ChatRequestBody, request: FastifyRequest) {
+  async function openConversation(body: ConversationSource, request: FastifyRequest) {
     const start = {
       sessionId: body.sessionId,
       pageUrl: body.pageUrl,

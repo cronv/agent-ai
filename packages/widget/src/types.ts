@@ -50,6 +50,8 @@ export interface WidgetConfig {
   privacyPolicyUrl: string | null
   /** Человеческий ритм ответа: пауза, темп печати, разбивка на сообщения. */
   rhythm: Pacing
+  /** Кнопки быстрых ответов под сообщением ассистента. */
+  quickReplies: boolean
 }
 
 /** Контакт, сохранённый ассистентом (событие `lead`) или формой в ленте. */
@@ -68,6 +70,8 @@ export type ChatStreamEvent =
   | { type: 'text'; text: string }
   | { type: 'tool'; name: string }
   | { type: 'apartments'; apartments: ApartmentCard[] }
+  /** Реплики для кнопок под ответом — их придумала модель, не виджет. */
+  | { type: 'suggestions'; options: string[] }
   | { type: 'lead'; lead: SavedLead }
   | { type: 'error'; message: string }
   | { type: 'done' }
@@ -81,15 +85,37 @@ export interface HistoryMessage {
   createdAt: string
 }
 
+/** Ответ `GET /api/chat/:sessionId`: переписка и то, что уже выбрано. */
+export interface ChatHistory {
+  messages: HistoryMessage[]
+  /** Идентификаторы квартир, отмеченных кнопкой «Выбрать» за этот диалог. */
+  selectedIds: string[]
+}
+
+/** Ответ `POST /api/chat/select` — итог нажатия «Выбрать» на карточке. */
+export interface SelectionResult {
+  /** Выбор записан. `false` — эту квартиру уже выбирали раньше. */
+  selected: boolean
+  /** Контакт уже был оставлен, и обновлённый лид ушёл менеджеру сразу. */
+  sentToManager: boolean
+  /** Реплика, которая встала в переписку: «Выбрал: двухкомнатная, …». */
+  text: string
+}
+
 /**
  * Элемент ленты чата.
  *
  * Приветствия здесь нет: сервер его не хранит, оно приходит из настроек и
  * рисуется поверх ленты, пока переписки ещё нет.
+ *
+ * `note` — служебная строка виджета: «передал менеджеру», «не получилось
+ * отметить». В базе её нет и быть не должно: это рассказ о том, что сделал
+ * виджет, а не реплика разговора.
  */
 export type FeedItem =
   | { kind: 'user'; id: string; text: string }
   | { kind: 'assistant'; id: string; text: string; apartments: ApartmentCard[]; failed: boolean }
+  | { kind: 'note'; id: string; text: string; tone: 'ok' | 'bad' }
 
 /** Что виджет показывает человеку, когда что-то пошло не так. */
 export interface ChatError {

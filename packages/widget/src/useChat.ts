@@ -43,6 +43,17 @@ import type { ApartmentCard, ChatError, FeedItem, SavedLead } from './types.ts'
  * Показывать форму или нет, решает `App`: он же знает, оставил ли человек
  * контакт раньше. `lead` — контакт, который ассистент записал сам со слов
  * посетителя; тогда форма сразу показывает подтверждение, а не поля.
+ *
+ * ── Про кнопки быстрых ответов ──────────────────────────────────────────────
+ *
+ * Реплики приходят отдельным событием потока (`suggestions`) — их придумала
+ * модель, виджет ответ по разделителям не разбирает. В ленту они попадают не
+ * сразу: событие откладывается до конца печати и применяется вместе с `finish`.
+ * Иначе кнопки выскакивали бы посреди набора — ровно то, против чего написан
+ * тикет 18: сначала ассистент договаривает, потом появляется, что ответить.
+ *
+ * Гаснут кнопки по трём поводам: нажали, начали печатать своё, задали новый
+ * вопрос. Все три означают одно — предложенное продолжение больше не к месту.
  */
 
 export type ChatPhase = 'idle' | 'waiting' | 'streaming'
@@ -64,11 +75,15 @@ interface ChatState {
   lead: SavedLead | null
   /** Сколько раз ассистент просил контакт: каждый вызов `save_lead` — повод показать форму. */
   contactAsked: number
+  /** Реплики на кнопках под последним ответом. Пусто — кнопок нет. */
+  suggestions: string[]
+  /** Идентификаторы квартир, отмеченных кнопкой «Выбрать». */
+  selected: string[]
   historyLoaded: boolean
 }
 
 type Action =
-  | { type: 'history'; items: FeedItem[] }
+  | { type: 'history'; items: FeedItem[]; selected: string[] }
   | { type: 'ask'; id: string; text: string }
   | { type: 'restart' }
   | { type: 'text'; text: string }
@@ -79,8 +94,13 @@ type Action =
   /** Конец сообщения посреди ответа: написанное уходит в ленту, печать продолжится в новом. */
   | { type: 'split' }
   | { type: 'stream-closed' }
-  | { type: 'finish' }
+  | { type: 'finish'; suggestions: string[] }
   | { type: 'fail'; error: ChatError }
+  /** Посетитель начал печатать своё или нажал кнопку — предложенное больше не к месту. */
+  | { type: 'hide-suggestions' }
+  /** Квартира отмечена кнопкой «Выбрать»: реплика в ленту, карточка помечена. */
+  | { type: 'choose'; id: string; text: string; note: string | null }
+  | { type: 'note'; text: string; tone: 'ok' | 'bad' }
 
 const INITIAL: ChatState = {
   items: [],
@@ -91,6 +111,8 @@ const INITIAL: ChatState = {
   error: null,
   lead: null,
   contactAsked: 0,
+  suggestions: [],
+  selected: [],
   historyLoaded: false,
 }
 
@@ -105,8 +127,8 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
     // она пришла, его реплику затирать нельзя — лента остаётся как есть.
     case 'history':
       return state.items.length > 0 || state.draft !== null
-        ? { ...state, historyLoaded: true }
-        : { ...state, items: action.items, historyLoaded: true }
+        ? { ...state, historyLoaded: true, selected: action.selected }
+        : { ...state, items: action.items, selected: action.selected, historyLoaded: true }
 
     // Новый вопрос посреди недопечатанного ответа — обычное дело: то, что
     // ассистент успел сказать, остаётся в ленте законченным сообщением.
@@ -119,6 +141,7 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
         phase: 'waiting',
         sending: true,
         error: null,
+        suggestions: [],
       }
 
     // Повтор: реплика посетителя уже в ленте, заново её добавлять не нужно.
@@ -131,6 +154,7 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
         phase: 'waiting',
         sending: true,
         error: null,
+        suggestions: [],
       }
 
     case 'text':
@@ -172,6 +196,8 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
     case 'stream-closed':
       return { ...state, sending: false }
 
+    // Ответ допечатан — только теперь под ним появляются кнопки. Пришли они
+    // с сервера ещё в начале ответа, но выскочить посреди набора не должны.
     case 'finish': {
       return {
         ...state,
@@ -180,10 +206,12 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
         tool: null,
         phase: 'idle',
         sending: false,
+        suggestions: action.suggestions,
       }
     }
 
     // Оборвалось: то, что успело прийти, остаётся в ленте с пометкой.
+    // Кнопок под оборванным ответом нет: они писались к другому тексту.
     case 'fail': {
       return {
         ...state,
@@ -193,8 +221,32 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
         phase: 'idle',
         sending: false,
         error: action.error,
+        suggestions: [],
       }
     }
+
+    case 'hide-suggestions':
+      return state.suggestions.length === 0 ? state : { ...state, suggestions: [] }
+
+    case 'choose':
+      return {
+        ...state,
+        items: [
+          ...state.items,
+          { kind: 'user', id: `s-${action.id}`, text: action.text },
+          ...(action.note ? [{ kind: 'note' as const, id: `n-${action.id}`, text: action.note, tone: 'ok' as const }] : []),
+        ],
+        selected: state.selected.includes(action.id) ? state.selected : [...state.selected, action.id],
+        // Кнопки писались к прошлому ответу; после выбора квартиры разговор
+        // ушёл в другую сторону.
+        suggestions: [],
+      }
+
+    case 'note':
+      return {
+        ...state,
+        items: [...state.items, { kind: 'note', id: `n-${state.items.length}-${Date.now()}`, text: action.text, tone: action.tone }],
+      }
   }
 }
 
@@ -231,6 +283,10 @@ export interface Chat {
   lead: SavedLead | null
   /** Растёт каждый раз, когда ассистент просит контакт: повод показать форму. */
   contactAsked: number
+  /** Реплики на кнопках под последним ответом. Пусто — кнопок нет. */
+  suggestions: string[]
+  /** Квартиры, отмеченные кнопкой «Выбрать»: на карточке стоит «Выбрана». */
+  selected: string[]
   /**
    * Запрос ещё в пути — поле ввода заблокировано. Пока виджет только
    * допечатывает уже полученный ответ, писать можно: новое сообщение
@@ -240,6 +296,12 @@ export interface Chat {
   send: (text: string) => void
   retry: () => void
   loadHistory: () => void
+  /** Посетитель начал печатать своё — кнопки убираем. */
+  hideSuggestions: () => void
+  /** Квартира выбрана: реплика в ленту и, если нужно, подтверждение под ней. */
+  addChoice: (id: string, text: string, note: string | null) => void
+  /** Служебная строка в ленте: «не получилось отметить квартиру». */
+  addNote: (text: string, tone: 'ok' | 'bad') => void
   /** Обрывает поток — вызывается, когда виджет уходит со страницы. */
   stop: () => void
 }
@@ -290,6 +352,12 @@ export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOpti
         /** Ассистент ходил в базу — обдумывать он будет дольше. */
         tools: false,
         failure: null as ChatError | null,
+        /**
+         * Реплики для кнопок. Копятся здесь, а не уходят в ленту сразу:
+         * применяются вместе с `finish`, то есть после того, как ответ
+         * допечатался.
+         */
+        suggestions: [] as string[],
       }
 
       // Читатель: складывает всё, что прислал сервер, в очередь как есть.
@@ -318,6 +386,9 @@ export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOpti
               case 'tool':
                 outcome.tools = true
                 dispatch({ type: 'tool', label: toolLabel(event.name), contact: event.name === 'save_lead' })
+                break
+              case 'suggestions':
+                outcome.suggestions = event.options
                 break
               case 'lead':
                 dispatch({ type: 'lead', lead: event.lead })
@@ -374,7 +445,7 @@ export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOpti
         if (signal.aborted) return
         if (outcome.failure) dispatch({ type: 'fail', error: outcome.failure })
         // Поток закончился, а `done` не пришло — соединение оборвалось.
-        else if (outcome.finished) dispatch({ type: 'finish' })
+        else if (outcome.finished) dispatch({ type: 'finish', suggestions: outcome.suggestions })
         else dispatch({ type: 'fail', error: BROKEN_STREAM })
       } finally {
         busyRef.current = false
@@ -403,8 +474,8 @@ export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOpti
     historyRef.current = true
     void api
       .loadHistory(sessionId)
-      .then((messages) => {
-        const items: FeedItem[] = messages.map((message, index) =>
+      .then((history) => {
+        const items: FeedItem[] = history.messages.map((message, index) =>
           message.role === 'user'
             ? { kind: 'user', id: message.id ?? `h-${index}`, text: message.content }
             : {
@@ -415,12 +486,26 @@ export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOpti
                 failed: false,
               },
         )
-        if (items.length > 0) dispatch({ type: 'history', items })
+        if (items.length > 0 || history.selectedIds.length > 0) {
+          dispatch({ type: 'history', items, selected: history.selectedIds })
+        }
       })
       .catch(() => {
         // История — приятное дополнение. Не загрузилась — чат работает дальше.
       })
   }, [api, sessionId])
+
+  const hideSuggestions = useCallback((): void => {
+    dispatch({ type: 'hide-suggestions' })
+  }, [])
+
+  const addChoice = useCallback((id: string, text: string, note: string | null): void => {
+    dispatch({ type: 'choose', id, text, note })
+  }, [])
+
+  const addNote = useCallback((text: string, tone: 'ok' | 'bad'): void => {
+    dispatch({ type: 'note', text, tone })
+  }, [])
 
   const stop = useCallback((): void => {
     abortRef.current?.abort()
@@ -434,10 +519,15 @@ export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOpti
     error: state.error,
     lead: state.lead,
     contactAsked: state.contactAsked,
+    suggestions: state.suggestions,
+    selected: state.selected,
     busy: state.sending,
     send,
     retry,
     loadHistory,
+    hideSuggestions,
+    addChoice,
+    addNote,
     stop,
   }
 }

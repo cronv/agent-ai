@@ -1,5 +1,13 @@
 import { DEFAULT_PACING, normalizePacing } from './pacing.ts'
-import type { ApartmentCard, ChatStreamEvent, HistoryMessage, SavedLead, WidgetConfig } from './types.ts'
+import type {
+  ApartmentCard,
+  ChatHistory,
+  ChatStreamEvent,
+  HistoryMessage,
+  SavedLead,
+  SelectionResult,
+  WidgetConfig,
+} from './types.ts'
 
 /**
  * Тонкий слой поверх публичного API чата.
@@ -38,6 +46,7 @@ export const DEFAULT_CONFIG: WidgetConfig = {
   exampleQuestions: [],
   privacyPolicyUrl: null,
   rhythm: DEFAULT_PACING,
+  quickReplies: true,
 }
 
 export interface SendPayload {
@@ -63,11 +72,21 @@ export interface LeadPayload {
   utm: Record<string, string> | null
 }
 
+/** Тело `POST /api/chat/select` — посетитель отметил квартиру кнопкой. */
+export interface SelectPayload {
+  sessionId: string
+  apartmentId: string
+  pageUrl: string | null
+  referrer: string | null
+  utm: Record<string, string> | null
+}
+
 export interface ChatApi {
   loadConfig(): Promise<WidgetConfig>
-  loadHistory(sessionId: string): Promise<HistoryMessage[]>
+  loadHistory(sessionId: string): Promise<ChatHistory>
   streamMessage(payload: SendPayload): AsyncGenerator<ChatStreamEvent>
   saveLead(payload: LeadPayload): Promise<SavedLead>
+  selectApartment(payload: SelectPayload): Promise<SelectionResult>
 }
 
 export function createApi(baseUrl: string): ChatApi {
@@ -98,14 +117,23 @@ export function createApi(baseUrl: string): ChatApi {
           charsPerSecond: body.typingSpeed,
           thinkMaxMs: body.thinkDelayMs,
         }),
+        // Старый сервер поля не пришлёт — тогда кнопки просто не появятся:
+        // событий `suggestions` в потоке всё равно не будет.
+        quickReplies: body.quickReplies !== false,
       }
     },
 
-    async loadHistory(sessionId: string): Promise<HistoryMessage[]> {
+    async loadHistory(sessionId: string): Promise<ChatHistory> {
       const response = await request(url(`/api/chat/${encodeURIComponent(sessionId)}`))
-      const body = (await response.json()) as { messages?: unknown }
-      if (!Array.isArray(body.messages)) return []
-      return body.messages.filter(isHistoryMessage)
+      const body = (await response.json()) as { messages?: unknown; selectedApartments?: unknown }
+      return {
+        messages: Array.isArray(body.messages) ? body.messages.filter(isHistoryMessage) : [],
+        selectedIds: Array.isArray(body.selectedApartments)
+          ? body.selectedApartments
+              .map((item) => (isRecord(item) && typeof item['id'] === 'string' ? item['id'] : null))
+              .filter((id): id is string => id !== null)
+          : [],
+      }
     },
 
     async *streamMessage(payload: SendPayload): AsyncGenerator<ChatStreamEvent> {
@@ -170,6 +198,27 @@ export function createApi(baseUrl: string): ChatApi {
         comment: typeof lead['comment'] === 'string' ? lead['comment'] : null,
       }
     },
+
+    /**
+     * «Выбрать» на карточке квартиры.
+     *
+     * Наружу уходит только идентификатор лота: карточку сервер соберёт сам из
+     * базы. Присылать её целиком значило бы разрешить браузеру назначить цену
+     * той квартире, которая уедет менеджеру.
+     */
+    async selectApartment(payload: SelectPayload): Promise<SelectionResult> {
+      const response = await request(url('/api/chat/select'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const body = (await response.json()) as Record<string, unknown>
+      return {
+        selected: body['selected'] === true,
+        sentToManager: body['sentToManager'] === true,
+        text: typeof body['text'] === 'string' ? body['text'] : '',
+      }
+    },
   }
 }
 
@@ -213,6 +262,13 @@ export function parseSseBlock(block: string): ChatStreamEvent | null {
         type: 'apartments',
         apartments: Array.isArray(parsed['apartments']) ? (parsed['apartments'] as ApartmentCard[]) : [],
       }
+    case 'suggestions': {
+      // Строки уже отобраны на сервере — здесь только защита от мусора в JSON.
+      const options = Array.isArray(parsed['options'])
+        ? parsed['options'].filter((item): item is string => typeof item === 'string' && item.trim() !== '')
+        : []
+      return options.length > 0 ? { type: 'suggestions', options } : null
+    }
     case 'lead':
       return isRecord(parsed['lead']) ? { type: 'lead', lead: parsed['lead'] as unknown as SavedLead } : null
     case 'error':
@@ -291,6 +347,8 @@ async function toHumanError(response: Response): Promise<ChatApiError> {
       return new ChatApiError('Чат сейчас выключен. Загляните чуть позже.', false)
     case 'origin_not_allowed':
       return new ChatApiError('Чат не подключён для этого сайта.', false)
+    case 'unknown_apartment':
+      return new ChatApiError('Эту квартиру уже сняли с продажи. Спросите — подберу похожую.', false)
     case 'bad_request':
     case 'bad_session':
       return new ChatApiError('Не получилось отправить сообщение. Попробуйте написать его иначе.')

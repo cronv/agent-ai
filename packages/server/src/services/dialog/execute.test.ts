@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { ingestDocument } from '../knowledge/index.js'
 import { createApartment, createProject } from '../../testing/catalog.js'
 import { resetDatabase, testDb } from '../../testing/db.js'
-import { executeTool } from './execute.js'
+import { executeTool, pickSuggestions } from './execute.js'
 
 /**
  * Разбор параметров инструментов проверяется на настоящей базе: то, что
@@ -181,5 +181,38 @@ describe('list_projects: пустой ответ называет реальны
 
     expect(outcome.content).toContain('"found":0')
     expect(outcome.content).toContain('Локации каталога, и других у агентства нет: Химки')
+  })
+})
+
+describe('suggest_replies: кнопки быстрых ответов', () => {
+  it('пропускает короткие реплики и режет всё, что кнопкой быть не может', () => {
+    expect(pickSuggestions(['Покажи подешевле', 'Другой район', 'Хочу посмотреть'])).toEqual([
+      'Покажи подешевле',
+      'Другой район',
+      'Хочу посмотреть',
+    ])
+
+    // Кавычки и маркеры списка модель добавляет от себя — на кнопке они лишние.
+    expect(pickSuggestions(['«Покажи подешевле»', '— Другой район'])).toEqual(['Покажи подешевле', 'Другой район'])
+
+    // Повтор в другом регистре — это одна и та же кнопка.
+    expect(pickSuggestions(['Подешевле', 'подешевле', 'Другой район'])).toEqual(['Подешевле', 'Другой район'])
+  })
+
+  it('длинный вариант выбрасывает, а не обрезает', () => {
+    const long = 'Расскажите подробнее про условия ипотеки в этом жилом комплексе'
+    expect(pickSuggestions([long, 'Подешевле', 'Другой район'])).toEqual(['Подешевле', 'Другой район'])
+  })
+
+  it('меньше двух пригодных вариантов — кнопок нет вовсе', () => {
+    // Одинокая кнопка читается как единственный допустимый ответ,
+    // а поле ввода рядом с ней — как декорация.
+    expect(pickSuggestions(['Подешевле'])).toEqual([])
+    expect(pickSuggestions('не массив')).toEqual([])
+    expect(pickSuggestions([1, 2, 3])).toEqual([])
+  })
+
+  it('берёт не больше четырёх: дальше это уже меню, а не подсказка', () => {
+    expect(pickSuggestions(['Раз', 'Два', 'Три', 'Четыре', 'Пять'])).toHaveLength(4)
   })
 })

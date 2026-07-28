@@ -247,6 +247,10 @@ model Conversation {
   /// UTM-метки страницы входа: { utm_source, utm_medium, ... }
   utm           Json?
   userAgent     String?  @map("user_agent")
+  /// Квартиры, которые посетитель отметил кнопкой «Выбрать». Это не то же
+  /// самое, что показанные: показали пять — выбрал одну. Живут на диалоге,
+  /// а не на лиде, потому что выбор случается и до того, как оставлен контакт.
+  selectedApartments Json? @map("selected_apartments")
   startedAt     DateTime @default(now()) @map("started_at")
   lastMessageAt DateTime @default(now()) @map("last_message_at")
   messageCount  Int      @default(0) @map("message_count")
@@ -296,6 +300,10 @@ model Lead {
   /// те же карточки, что и в `messages.apartments`. Менеджер видит,
   /// что человек смотрел, не открывая переписку.
   apartments     Json?
+  /// Квартиры, которые посетитель отметил кнопкой «Выбрать». Главный признак
+  /// горячего лида, и в админке они показаны отдельно от просмотренных:
+  /// смотрел пять, выбрал одну — звонить надо про неё.
+  selectedApartments Json?     @map("selected_apartments")
   /// Итог отправки во внешний вебхук. `failed` вместе с `webhookError`
   /// показывается в карточке лида в админке.
   webhookStatus  LeadWebhookStatus @default(skipped) @map("webhook_status")

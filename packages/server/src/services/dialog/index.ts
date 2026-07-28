@@ -16,6 +16,7 @@
  *   apartments.ts    — запросы к каталогу, проверяются без всякой модели;
  *   execute.ts       — разбор параметров от модели и исполнение инструментов;
  *   leads.ts         — сохранение контакта; точка расширения для тикета 07;
+ *   selection.ts     — выбор квартиры кнопкой на карточке;
  *   prompt.ts        — сборка системного промпта;
  *   model.ts         — выбор модели по признакам запроса;
  *   history.ts       — история для модели и её обрезка по бюджету;
@@ -32,4 +33,5 @@ export * from './history.js'
 export * from './leads.js'
 export * from './model.js'
 export * from './prompt.js'
+export * from './selection.js'
 export * from './tools.js'

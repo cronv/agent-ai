@@ -196,6 +196,24 @@ export const SETTING_DEFINITIONS = {
   }),
 
   /**
+   * Кнопки быстрых ответов.
+   *
+   * Настройка отдана виджету (`public`), но выключает она в первую очередь
+   * серверную часть: выключенная, она убирает инструмент `suggest_replies` из
+   * запроса к модели. Прятать кнопки только на клиенте значило бы платить за
+   * них токенами каждый ход и получать «выберите вариант ниже» под пустотой.
+   */
+  quick_replies_enabled: define<boolean>({
+    type: 'boolean',
+    default: true,
+    label: 'Кнопки быстрых ответов',
+    description:
+      'Под ответом ассистента появляются 2–4 готовые реплики — посетителю не нужно печатать, чтобы двигаться дальше. Поле ввода остаётся в любом случае. Выключите, если хотите только свободный текст.',
+    group: 'assistant',
+    public: true,
+  }),
+
+  /**
    * Ритм ответа. Эти три настройки применяет виджет, а не сервер, поэтому они
    * помечены `public` и уходят в `GET /api/widget/config`.
    * Почему на виджете, а не на сервере, — в комментарии `widget/src/pacing.ts`.
@@ -334,6 +352,7 @@ export const SETTING_KEYS = Object.keys(SETTING_DEFINITIONS) as SettingKey[]
  * тест `settings.service.test.ts` следит, что он совпадает с флагами `public`.
  */
 export const PUBLIC_SETTING_KEYS = [
+  'quick_replies_enabled',
   'human_rhythm_enabled',
   'human_typing_speed',
   'human_think_delay_ms',
