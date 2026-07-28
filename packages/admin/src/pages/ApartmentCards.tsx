@@ -37,12 +37,12 @@ export function ApartmentCards({
 }
 
 function ApartmentCard({ apartment }: { apartment: ApartmentCardView }): ReactElement {
-  const title = [
-    roomsLabel(apartment.rooms),
-    apartment.area === null ? null : `${formatNumber(apartment.area)} м²`,
-  ]
-    .filter(Boolean)
-    .join(', ')
+  // Комнатности может не быть вовсе — у свободной планировки её и не бывает;
+  // тогда в заголовок идёт тип планировки, а не «без комнатности».
+  const rooms = apartment.rooms === null && apartment.planType ? apartment.planType : roomsLabel(apartment.rooms)
+  const title = [rooms, apartment.area === null ? null : `${formatNumber(apartment.area)} м²`].filter(Boolean).join(', ')
+  // Планировка главнее, но во вторичке её не дают — тогда показываем первый снимок.
+  const thumbnail = apartment.planImageUrl ?? apartment.photos?.[0] ?? null
 
   const details = [
     apartment.floor === null
@@ -54,7 +54,7 @@ function ApartmentCard({ apartment }: { apartment: ApartmentCardView }): ReactEl
 
   return (
     <div className="flex h-full gap-3 rounded-xl border border-line bg-surface p-3">
-      {apartment.planImageUrl === null ? (
+      {thumbnail === null ? (
         <span
           aria-hidden="true"
           className="flex size-16 shrink-0 items-center justify-center rounded-lg bg-canvas text-faint"
@@ -63,8 +63,8 @@ function ApartmentCard({ apartment }: { apartment: ApartmentCardView }): ReactEl
         </span>
       ) : (
         <img
-          src={apartment.planImageUrl}
-          alt={`Планировка: ${title}`}
+          src={thumbnail}
+          alt={apartment.planImageUrl === null ? `Фотография: ${title}` : `Планировка: ${title}`}
           width={64}
           height={64}
           loading="lazy"

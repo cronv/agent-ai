@@ -98,6 +98,23 @@ describe('search_apartments: что уходит модели вместо ну�
     return outcome.content
   }
 
+  it('модели уходит число фотографий, а не десяток ссылок на каждый лот', async () => {
+    const bereg = await createProject({ name: 'ЖК «Берег»', district: 'Химки' })
+    await createApartment({
+      projectId: bereg.id,
+      rooms: 2,
+      price: 10_000_000,
+      photos: ['https://cdn.ru/1.jpg', 'https://cdn.ru/2.jpg', 'https://cdn.ru/3.jpg'],
+    })
+
+    const outcome = await executeTool('search_apartments', { rooms: [2] }, { db: testDb, conversationId: 'c1' })
+
+    expect(outcome.content).toContain('"photoCount":3')
+    expect(outcome.content).not.toContain('cdn.ru')
+    // Виджету при этом уезжают сами ссылки — карточку рисует он.
+    expect(outcome.apartments[0]?.photos).toHaveLength(3)
+  })
+
   it('на узком фильтре сообщает, сколько таких квартир есть на самом деле', async () => {
     await catalog()
 

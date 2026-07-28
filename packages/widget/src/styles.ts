@@ -339,12 +339,18 @@ export const styles = `
   display: block;
   width: 100%;
   aspect-ratio: 4 / 3;
-  padding: 0;
-  border: 0;
   border-bottom: 1px solid var(--line);
   background: var(--surface-2);
-  cursor: zoom-in;
   overflow: hidden;
+}
+.plan__open {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
 }
 .plan__img {
   width: 100%;
@@ -354,7 +360,49 @@ export const styles = `
   opacity: 0;
   transition: opacity .35s ease;
 }
+/* Фотография заполняет кадр целиком: чертёж просят разглядывать,
+   а снимок комнаты в рамке с полями выглядит как ошибка вёрстки. */
+.plan__img--photo { object-fit: cover; padding: 0; }
 .plan__img--ready { opacity: 1; }
+
+/* Стрелки видны всегда: на телефоне наведения нет, а листать надо. */
+.plan__nav {
+  position: absolute;
+  top: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-top: -15px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .88);
+  color: var(--ink-2);
+  box-shadow: 0 2px 8px rgba(14, 17, 22, .16);
+  cursor: pointer;
+  transition: background .15s ease, transform .15s var(--ease);
+}
+.plan__nav:hover { background: #fff; }
+.plan__nav:active { transform: scale(.94); }
+.plan__nav--prev { left: 8px; }
+.plan__nav--next { right: 8px; }
+.plan__nav--next svg { transform: rotate(180deg); }
+
+.plan__count {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  background: rgba(14, 17, 22, .58);
+  color: #fff;
+  font-size: 11.5px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
 .plan__zoom {
   position: absolute;
   right: 8px;
@@ -372,7 +420,7 @@ export const styles = `
   transform: translateY(4px);
   transition: opacity .2s ease, transform .2s var(--ease);
 }
-.card:hover .plan__zoom, .plan:focus-visible .plan__zoom { opacity: 1; transform: none; }
+.card:hover .plan__zoom, .plan__open:focus-visible + .plan__zoom { opacity: 1; transform: none; }
 
 .plan--empty {
   display: flex;
@@ -453,8 +501,15 @@ export const styles = `
   box-shadow: 0 30px 70px -25px rgba(0, 0, 0, .5);
   animation: widget-in .26s var(--ease) both;
 }
+.viewer__frame {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
 .viewer__img {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   max-height: min(70vh, 620px);
   object-fit: contain;

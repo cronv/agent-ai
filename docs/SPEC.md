@@ -125,7 +125,7 @@ Anthropic Claude. `claude-haiku-4-5-20251001` — основная модель 
 
 - `Project` — ЖК: `name`, `slug`, `developer`, `district`, `metro`, `metroDistanceMin`, `address`, `deadline`, `finishing`, `description`, `url`, `imageUrl`, `isActive`.
 - `Feed` — источник: `name`, `url`, `format` (`yandex` | `cian` | `domclick` | `custom`), `fieldMapping` (JSON), `scheduleCron`, `isActive`, `lastRunAt`, `lastStatus`, `lastError`, `lastCount`.
-- `Apartment` — лот: `feedId`, `projectId`, `externalId`, `rooms`, `area`, `livingArea`, `kitchenArea`, `floor`, `floorsTotal`, `price`, `pricePerM2`, `building`, `section`, `finishing`, `deadline`, `planImageUrl`, `url`, `isActive`, `raw` (JSON), `syncedAt`. Уникальность по (`feedId`, `externalId`).
+- `Apartment` — лот: `feedId`, `projectId`, `externalId`, `rooms`, `planType`, `area`, `livingArea`, `kitchenArea`, `floor`, `floorsTotal`, `price`, `pricePerM2`, `building`, `section`, `finishing`, `deadline`, `planImageUrl`, `photos` (массив ссылок), `url`, `isActive`, `raw` (JSON), `syncedAt`. Уникальность по (`feedId`, `externalId`). `rooms` — число комнат, 0 это студия; `planType` заполняется там, где выгрузка сообщает тип планировки вместо числа («свободная планировка», «многокомнатная»), и тогда `rooms` пуст, чтобы поиск по комнатности не выдавал такой лот за семикомнатный.
 - `KnowledgeDoc` — документ: `projectId?`, `filename`, `mimeType`, `sizeBytes`, `charCount`, `status`, `error`, `createdAt`.
 - `KnowledgeChunk` — фрагмент: `docId`, `projectId?`, `content`, `position`, `tsv` (tsvector, GIN-индекс).
 - `Conversation` — диалог: `sessionId`, `pageUrl`, `referrer`, `utm` (JSON), `userAgent`, `startedAt`, `lastMessageAt`, `messageCount`, `tokensIn`, `tokensOut`.
@@ -142,6 +142,8 @@ Anthropic Claude. `claude-haiku-4-5-20251001` — основная модель 
 ### Синхронизация фидов
 
 `node-cron` внутри процесса приложения, расписание из настроек (по умолчанию каждые 3 часа). Разбор XML — `fast-xml-parser`. Встроенные профили полей для Яндекс.Недвижимости, ЦИАН и ДомКлик; для `custom` — маппинг «путь в XML → поле квартиры», задаётся в админке. В выгрузке ДомКлик данные лота разбросаны по уровням `complex → building → flat`, поэтому её профиль задаёт собственный обход документа, а не словарь путей.
+
+Два поля читаются не как остальные. `roomsCode` — комнатность, записанная кодом: в ЦИАН `FlatRoomsCount` даёт 1–5 как есть, 6 — многокомнатная, 7 — свободная планировка, 9 — студия; прочитанный числом, он превращает студию в девятикомнатную квартиру. `photos` — не одно значение, а весь список по пути: `Photos.PhotoSchema.FullUrl` даёт всю галерею объявления, из которой берутся первые десять. Планировка при этом заполняется только из настоящей планировки (`LayoutPhoto`): подставлять вместо неё первый снимок нельзя — во вторичке это фотография кухни с подписью «планировка».
 
 Отдельного поля с районом ДомКлик не отдаёт: он вычисляется из адреса комплекса (часть до первой точки) и уточнения в скобках названия, приводится к человеческой форме — «Домодедовский городской округ» → «Домодедово».
 

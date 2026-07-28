@@ -135,6 +135,10 @@ model Apartment {
   /// Идентификатор лота в выгрузке застройщика
   externalId   String    @map("external_id")
   rooms        Int?
+  /// Тип планировки словами, когда выгрузка сообщает его вместо числа комнат:
+  /// «свободная планировка», «многокомнатная». У таких лотов `rooms` пуст —
+  /// иначе поиск по комнатности выдавал бы их за шести- и семикомнатные.
+  planType     String?   @map("plan_type")
   area         Float?
   livingArea   Float?    @map("living_area")
   kitchenArea  Float?    @map("kitchen_area")
@@ -155,6 +159,9 @@ model Apartment {
   euroPlan     Boolean?  @map("euro_plan")
   deadline     DateTime? @db.Date
   planImageUrl String?   @map("plan_image_url")
+  /// Фотографии объекта из выгрузки, в порядке фида. Не больше MAX_PHOTOS
+  /// снимков — см. services/feeds/parse.ts. Планировки здесь нет: она отдельно.
+  photos       String[]
   url          String?
   isActive     Boolean   @default(true) @map("is_active")
   /// Исходный узел XML — на случай, если понадобится поле, которого нет в схеме

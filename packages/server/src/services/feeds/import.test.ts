@@ -232,6 +232,51 @@ describe('importFeed — фид ЦИАН', () => {
   })
 })
 
+describe('importFeed — боевая выгрузка ЦИАН', () => {
+  async function createCianFeed(): Promise<string> {
+    return createFeed({ name: 'ЦИАН вторичка', format: 'cian', url: 'https://www.ndv.ru/export/resale-cian-feed' })
+  }
+
+  it('комнатность и галерея доезжают до базы', async () => {
+    const feedId = await createCianFeed()
+
+    const result = await importFeed(feedId, { db: testDb, download: serves('cian-ndv.xml') })
+
+    expect(result).toMatchObject({ status: 'ok', total: 6, created: 6, skipped: 0 })
+
+    const studio = await testDb.apartment.findFirstOrThrow({
+      where: { feedId, externalId: 'B76BD12A-87A1-4A15-B067-7592856CFFB7' },
+    })
+    expect(studio.rooms).toBe(0)
+    expect(studio.planImageUrl).toBe('https://omut.ndv.ru/file/PLAN-B76BD12A/plan.png')
+    expect(studio.photos).toHaveLength(3)
+
+    const gallery = await testDb.apartment.findFirstOrThrow({
+      where: { feedId, externalId: '920BDFA3-446F-4231-93D8-91694F14099F' },
+    })
+    expect(gallery.photos).toHaveLength(10)
+    expect(gallery.planImageUrl).toBeNull()
+  })
+
+  it('свободная планировка и многокомнатная не выдаются за 6- и 7-комнатные', async () => {
+    const feedId = await createCianFeed()
+    await importFeed(feedId, { db: testDb, download: serves('cian-ndv.xml') })
+
+    // Поиск по комнатности их не находит — комнат у них нет.
+    expect(await testDb.apartment.count({ where: { feedId, rooms: { in: [6, 7] } } })).toBe(0)
+
+    const special = await testDb.apartment.findMany({
+      where: { feedId, planType: { not: null } },
+      orderBy: { planType: 'asc' },
+      select: { planType: true, rooms: true },
+    })
+    expect(special).toEqual([
+      { planType: 'многокомнатная', rooms: null },
+      { planType: 'свободная планировка', rooms: null },
+    ])
+  })
+})
+
 describe('importFeed — фид ДомКлик', () => {
   async function createDomclickFeed(name = 'ЖК «Мишино-2»'): Promise<string> {
     return createFeed({ name, format: 'domclick', url: 'https://exchange.example.ru/export/mishino2' })

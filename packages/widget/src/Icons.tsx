@@ -88,6 +88,11 @@ export function CheckIcon({ size = 18 }: IconProps) {
   return svg(size, <path d="m5 12.5 4.5 4.5L19 7" />)
 }
 
+/** Стрелка галереи. Смотрит влево; вправо её разворачивает CSS. */
+export function ArrowIcon({ size = 16 }: IconProps) {
+  return svg(size, <path d="M14.5 5 8 12l6.5 7" />)
+}
+
 /** Заглушка на месте планировки: чертёж, которого нет. */
 export function PlanPlaceholderIcon({ size = 44 }: IconProps) {
   return svg(

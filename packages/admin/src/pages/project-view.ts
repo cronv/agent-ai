@@ -34,6 +34,8 @@ export interface ApartmentView {
   id: string
   externalId: string
   rooms: number | null
+  /** «свободная планировка», «многокомнатная» — вместо числа комнат. */
+  planType: string | null
   area: number | null
   floor: number | null
   floorsTotal: number | null
@@ -44,6 +46,7 @@ export interface ApartmentView {
   finishing: string | null
   deadline: string | null
   planImageUrl: string | null
+  photos: string[]
   url: string | null
   isActive: boolean
   syncedAt: string

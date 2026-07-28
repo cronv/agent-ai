@@ -33,7 +33,8 @@ export function App({ apiBase }: { apiBase: string }) {
   const chat = useChat({ api, sessionId, pacing: config.rhythm })
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
-  const [plan, setPlan] = useState<ApartmentCard | null>(null)
+  // Что открыто крупно: карточка и номер снимка в ней.
+  const [plan, setPlan] = useState<{ card: ApartmentCard; index: number } | null>(null)
   const [contact, setContact] = useState<ContactStage>('hidden')
   const [lead, setLead] = useState<SavedLead | null>(null)
 
@@ -200,7 +201,7 @@ export function App({ apiBase }: { apiBase: string }) {
               error={chat.error}
               onExample={send}
               onRetry={chat.retry}
-              onOpenPlan={setPlan}
+              onOpenPlan={(card, index) => setPlan({ card, index })}
               contactSlot={
                 contact === 'form' ? (
                   <ContactForm
@@ -242,7 +243,7 @@ export function App({ apiBase }: { apiBase: string }) {
 
       {/* Планировка открывается поверх всей страницы, а не внутри панели:
           в окне шириной 420px «крупно» не получается. */}
-      {plan ? <PlanViewer card={plan} onClose={() => setPlan(null)} /> : null}
+      {plan ? <PlanViewer card={plan.card} index={plan.index} onClose={() => setPlan(null)} /> : null}
 
       <button
         type="button"

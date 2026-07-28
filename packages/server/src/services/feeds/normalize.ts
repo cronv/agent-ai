@@ -176,6 +176,57 @@ export function parseRooms(value: unknown): number | null {
 /** Слово «студия» в любом написании — и по-русски, и латиницей. */
 const STUDIO_WORD = /студи|studio/i
 
+/** Планировка, которую нельзя выразить числом комнат. */
+export const FREE_PLAN = 'свободная планировка'
+/** Больше пяти комнат; сколько именно — выгрузка не говорит. */
+export const MULTI_ROOM = 'многокомнатная'
+
+/** Что удалось понять из кода комнатности. */
+export interface RoomsCode {
+  /** Число комнат; 0 — студия. `null` — код говорит не о количестве. */
+  rooms: number | null
+  /** Тип планировки словами, если код сообщает именно его. */
+  planType: string | null
+}
+
+/**
+ * Комнатность, записанная кодом, а не числом.
+ *
+ * Так устроен `FlatRoomsCount` в выгрузке ЦИАН: 1–5 — это комнаты, а 6, 7 и 9 —
+ * условные обозначения. Прочитанные как обычное число, они превращают студию в
+ * девятикомнатную квартиру, и человек, попросивший студию, её не находит.
+ *
+ *   1…5 → столько комнат
+ *   6   → многокомнатная (больше пяти; сколько именно — неизвестно)
+ *   7   → свободная планировка (комнат нет вообще)
+ *   9   → студия, у нас это `rooms = 0`
+ *
+ * 6 и 7 не дают числа комнат: шестёрка означает «больше пяти», а не «шесть»,
+ * семёрка не означает ничего похожего на комнаты. Записать их числом — значит
+ * подсунуть такой лот человеку, который ищет шести- или семикомнатную. Поэтому
+ * `rooms` у них пустой, а смысл переезжает в `planType`, откуда его видит и
+ * ассистент, и карточка.
+ *
+ * `null` означает «кода нет» — вызывающий берёт комнатность из обычного поля.
+ */
+export function parseRoomsCode(value: unknown): RoomsCode | null {
+  const text = toText(value)
+  if (text === null) return null
+  if (STUDIO_WORD.test(text)) return { rooms: 0, planType: null }
+
+  const match = /\d+/.exec(text)
+  if (!match) return null
+  const code = Number.parseInt(match[0], 10)
+
+  if (code >= 1 && code <= 5) return { rooms: code, planType: null }
+  if (code === 6) return { rooms: null, planType: MULTI_ROOM }
+  if (code === 7) return { rooms: null, planType: FREE_PLAN }
+  if (code === 9) return { rooms: 0, planType: null }
+  // Кода вне таблицы в выгрузке быть не должно; выдумывать по нему комнатность
+  // опаснее, чем оставить лот без неё.
+  return { rooms: null, planType: null }
+}
+
 /** Признак студии: и `<studio>true</studio>`, и `<FlatType>studio</FlatType>`. */
 export function isStudio(value: unknown): boolean {
   const text = toText(value)

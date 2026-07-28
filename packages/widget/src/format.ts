@@ -38,8 +38,26 @@ export function formatRooms(rooms: number | null): string | null {
 
 /** Заголовок карточки: «2-комн. · 54,3 м²». */
 export function formatTitle(card: ApartmentCard): string {
-  const parts = [formatRooms(card.rooms), formatArea(card.area)].filter((part): part is string => part !== null)
+  // Комнатности может не быть: у свободной планировки комнат нет вовсе,
+  // а «многокомнатная» — это «больше пяти», а не число. Тогда в заголовок
+  // идёт тип планировки, иначе карточка начиналась бы с одной площади.
+  const planType = card.planType ? capitalize(card.planType) : null
+  const rooms = formatRooms(card.rooms) ?? planType
+  const parts = [rooms, formatArea(card.area)].filter((part): part is string => part !== null && part !== '')
   return parts.length > 0 ? parts.join(' · ') : 'Квартира'
+}
+
+/**
+ * Что показывать в картинке карточки.
+ *
+ * Планировка главнее всего: по ней человек и листает ленту. Фотографии —
+ * запасной вариант для вторички, где планировок не дают; их несколько, и
+ * карточка даёт их пролистать. Нет ни того, ни другого — пустой список,
+ * и на месте картинки рисуется заглушка.
+ */
+export function cardImages(card: ApartmentCard): string[] {
+  if (card.planImageUrl) return [card.planImageUrl]
+  return (card.photos ?? []).filter((url) => typeof url === 'string' && url !== '')
 }
 
 /** «5 из 17 этажа» — без дроби, дробь на карточке читается как ошибка. */

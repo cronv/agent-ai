@@ -19,6 +19,8 @@ export interface ApartmentCardView {
   metro: string | null
   metroDistanceMin: number | null
   rooms: number | null
+  /** «свободная планировка», «многокомнатная» — вместо числа комнат. */
+  planType?: string | null
   area: number | null
   livingArea: number | null
   kitchenArea: number | null
@@ -31,6 +33,8 @@ export interface ApartmentCardView {
   finishing: string | null
   deadline: string | null
   planImageUrl: string | null
+  /** Фотографии объекта. У переписок, сохранённых до тикета 20, их нет. */
+  photos?: string[]
   url: string | null
 }
 

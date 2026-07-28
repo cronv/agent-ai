@@ -476,6 +476,9 @@ export function describeApartment(card: ApartmentCard): string {
   if (card.projectName) parts.push(card.projectName)
   if (card.rooms !== null && card.rooms !== undefined) {
     parts.push(card.rooms === 0 ? 'студия' : `${card.rooms}-к`)
+  } else if (card.planType) {
+    // Комнатности нет, но тип планировки её заменяет: «свободная планировка».
+    parts.push(card.planType)
   }
   if (card.area) parts.push(`${formatNumber(card.area)} м²`)
   if (card.floor !== null && card.floor !== undefined) {

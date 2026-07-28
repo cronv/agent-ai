@@ -14,6 +14,7 @@ import {
   parsePrice,
   parseQuarter,
   parseRooms,
+  parseRoomsCode,
   parseYear,
   quarterEndDate,
   toText,
@@ -53,6 +54,11 @@ export interface ParsedApartment {
   price: number
   pricePerM2: number | null
   rooms: number | null
+  /**
+   * Тип планировки словами, когда выгрузка сообщает его вместо числа комнат:
+   * «свободная планировка», «многокомнатная». Обычно `null`.
+   */
+  planType: string | null
   area: number | null
   livingArea: number | null
   kitchenArea: number | null
@@ -67,6 +73,8 @@ export interface ParsedApartment {
   euroPlan: boolean | null
   deadline: Date | null
   planImageUrl: string | null
+  /** Фотографии объекта в порядке выгрузки, не больше `MAX_PHOTOS`. */
+  photos: string[]
   url: string | null
   project: ParsedProject | null
   /** Исходный узел XML — в базе хранится в колонке `raw`. */
@@ -284,6 +292,30 @@ export function resolvePath(node: unknown, path: string): unknown {
   return current
 }
 
+/**
+ * Все значения по пути, а не первое.
+ *
+ * `resolvePath` на массиве берёт первый элемент — так и нужно для метро, где
+ * ближайшая станция идёт первой. Галерее нужно обратное: `Photos.PhotoSchema.FullUrl`
+ * должен дать все снимки, поэтому на каждом шаге массив разворачивается целиком.
+ */
+export function resolveAll(node: unknown, path: string): unknown[] {
+  let current: unknown[] = [node]
+  for (const segment of path.split('.')) {
+    const next: unknown[] = []
+    for (const item of current) {
+      for (const one of Array.isArray(item) ? item : [item]) {
+        if (!isPlainObject(one)) continue
+        const value = one[segment]
+        if (value === undefined || value === null) continue
+        next.push(value)
+      }
+    }
+    current = next
+  }
+  return current.flatMap((value) => (Array.isArray(value) ? value : [value]))
+}
+
 // ── Поля ────────────────────────────────────────────────────
 
 /** Первое непустое значение среди путей, заданных для поля. */
@@ -295,6 +327,36 @@ function pick(offer: Record<string, unknown>, profile: FeedProfile, field: FeedF
     if (toText(value) !== null) return value
   }
   return undefined
+}
+
+/**
+ * Сколько снимков берём из объявления.
+ *
+ * Вторичка отдаёт до 66 фотографий на лот, и это не витрина, а архив агента:
+ * дальше первого десятка идут повторы одной и той же комнаты и снимки подъезда.
+ * Десять покрывают квартиру целиком, листаются в карточке за несколько
+ * движений и не раздувают ни строку в базе, ни JSON, который уезжает в виджет
+ * с каждой подборкой.
+ */
+export const MAX_PHOTOS = 10
+
+/** Ссылки на картинки по всем путям поля: без повторов и не длиннее `MAX_PHOTOS`. */
+function pickImages(offer: Record<string, unknown>, profile: FeedProfile, field: FeedField): string[] {
+  const paths = profile.fields[field]
+  if (!paths) return []
+
+  const images: string[] = []
+  const seen = new Set<string>()
+  for (const path of paths) {
+    for (const value of resolveAll(offer, path)) {
+      const url = normalizeUrl(value)
+      if (url === null || seen.has(url)) continue
+      seen.add(url)
+      images.push(url)
+      if (images.length >= MAX_PHOTOS) return images
+    }
+  }
+  return images
 }
 
 type BuildResult = ParsedApartment | { reason: string; externalId: string | null }
@@ -312,7 +374,11 @@ function buildApartment(offer: Record<string, unknown>, profile: FeedProfile): B
 
   const area = parseArea(pick(offer, profile, 'area'))
   const studioFlag = profile.fields.studio ? isStudio(pick(offer, profile, 'studio')) : false
-  const rooms = studioFlag ? 0 : parseRooms(pick(offer, profile, 'rooms'))
+  // Код комнатности идёт первым: там, где он есть, он точнее обычного числа —
+  // а там, где его нет, разбор возвращает `null` и работает запасное поле.
+  const code = profile.fields.roomsCode ? parseRoomsCode(pick(offer, profile, 'roomsCode')) : null
+  const counted = code === null ? parseRooms(pick(offer, profile, 'rooms')) : code.rooms
+  const rooms = studioFlag ? 0 : counted
 
   const deadline =
     parseDate(pick(offer, profile, 'deadline')) ??
@@ -323,6 +389,7 @@ function buildApartment(offer: Record<string, unknown>, profile: FeedProfile): B
     price,
     pricePerM2: parsePrice(pick(offer, profile, 'pricePerM2')) ?? computePricePerM2(price, area),
     rooms,
+    planType: code?.planType ?? null,
     area,
     livingArea: parseArea(pick(offer, profile, 'livingArea')),
     kitchenArea: parseArea(pick(offer, profile, 'kitchenArea')),
@@ -337,6 +404,7 @@ function buildApartment(offer: Record<string, unknown>, profile: FeedProfile): B
     euroPlan: parseBoolean(pick(offer, profile, 'euroPlan')),
     deadline,
     planImageUrl: normalizeUrl(pick(offer, profile, 'planImageUrl')),
+    photos: pickImages(offer, profile, 'photos'),
     url: normalizeUrl(pick(offer, profile, 'url')),
     project: buildProject(offer, profile),
     raw: offer,

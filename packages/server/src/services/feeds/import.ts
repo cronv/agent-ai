@@ -214,6 +214,7 @@ function toApartmentData(
   return {
     projectId,
     rooms: apartment.rooms,
+    planType: apartment.planType,
     area: apartment.area,
     livingArea: apartment.livingArea,
     kitchenArea: apartment.kitchenArea,
@@ -230,6 +231,7 @@ function toApartmentData(
     euroPlan: apartment.euroPlan,
     deadline: apartment.deadline,
     planImageUrl: apartment.planImageUrl,
+    photos: apartment.photos,
     url: apartment.url,
     isActive: true,
     raw: apartment.raw as Prisma.InputJsonValue,

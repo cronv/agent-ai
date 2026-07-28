@@ -39,6 +39,12 @@ export interface ApartmentCard {
   metro: string | null
   metroDistanceMin: number | null
   rooms: number | null
+  /**
+   * Тип планировки словами, когда выгрузка сообщает его вместо числа комнат:
+   * «свободная планировка», «многокомнатная». У таких лотов `rooms` пуст —
+   * сказать про них что-то можно только отсюда.
+   */
+  planType: string | null
   area: number | null
   livingArea: number | null
   kitchenArea: number | null
@@ -60,6 +66,11 @@ export interface ApartmentCard {
   /** Срок сдачи в формате `YYYY-MM-DD` или `null`. */
   deadline: string | null
   planImageUrl: string | null
+  /**
+   * Фотографии объекта. Планировка в карточке главнее: снимки показываются
+   * вместо неё, когда её нет, — так устроена вторичка, где планировок не дают.
+   */
+  photos: string[]
   url: string | null
 }
 
@@ -566,6 +577,7 @@ function toCard(row: ApartmentRow): ApartmentCard {
     metro: row.project?.metro ?? null,
     metroDistanceMin: row.project?.metroDistanceMin ?? null,
     rooms: row.rooms,
+    planType: row.planType,
     area: row.area,
     livingArea: row.livingArea,
     kitchenArea: row.kitchenArea,
@@ -582,6 +594,7 @@ function toCard(row: ApartmentRow): ApartmentCard {
     euroPlan: row.euroPlan,
     deadline: toDateString(row.deadline),
     planImageUrl: row.planImageUrl,
+    photos: row.photos,
     url: row.url,
   }
 }

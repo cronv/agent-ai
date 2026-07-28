@@ -20,7 +20,16 @@ import { DOMCLICK_PROFILE } from './domclick.js'
  * обход `collect`, который сначала склеивает лот с родителями. См. domclick.ts.
  */
 
-/** Поля, которые умеет заполнять маппинг. */
+/**
+ * Поля, которые умеет заполнять маппинг.
+ *
+ * Два поля читаются не как остальные:
+ *  - `roomsCode` — комнатность, записанная кодом (ЦИАН: 9 — студия,
+ *    7 — свободная планировка). Разбирается по таблице, а не как число, и
+ *    имеет приоритет над `rooms`; см. `parseRoomsCode` в normalize.ts.
+ *  - `photos` — не одно значение, а весь список по пути: путь
+ *    `Photos.PhotoSchema.FullUrl` даёт все снимки объявления, а не первый.
+ */
 export const FEED_FIELDS = [
   'externalId',
   'url',
@@ -30,6 +39,7 @@ export const FEED_FIELDS = [
   'livingArea',
   'kitchenArea',
   'rooms',
+  'roomsCode',
   'studio',
   'floor',
   'floorsTotal',
@@ -44,6 +54,7 @@ export const FEED_FIELDS = [
   'deadlineYear',
   'deadlineQuarter',
   'planImageUrl',
+  'photos',
   'projectName',
   'projectUrl',
   'projectImageUrl',
@@ -113,7 +124,18 @@ export const YANDEX_PROFILE: FeedProfile = {
   },
 }
 
-/** ЦИАН — выгрузка `feed` версии 2. */
+/**
+ * ЦИАН — выгрузка `feed` версии 2.
+ *
+ * Комнатность берётся из `FlatRoomsCount` кодом: в выгрузке NDV она заполнена
+ * у всех 95 объектов, тогда как `RoomsCount` — у двух (это `roomSale`, продажа
+ * комнаты, где число относится ко всей квартире). Поэтому `RoomsCount` остаётся
+ * запасным путём, а не первым.
+ *
+ * Планировка — только `LayoutPhoto`. Раньше сюда же был подставлен первый
+ * снимок из `Photos`, и во вторичке карточка показывала фотографию кухни с
+ * подписью «планировка». Снимки теперь едут в галерею, каждый на своём месте.
+ */
 export const CIAN_PROFILE: FeedProfile = {
   label: 'ЦИАН',
   itemsPaths: ['feed.object'],
@@ -124,7 +146,8 @@ export const CIAN_PROFILE: FeedProfile = {
     area: ['TotalArea'],
     livingArea: ['LivingArea'],
     kitchenArea: ['KitchenArea'],
-    rooms: ['RoomsCount', 'FlatRoomsCount', 'FlatType'],
+    roomsCode: ['FlatRoomsCount'],
+    rooms: ['RoomsCount'],
     studio: ['FlatType'],
     floor: ['FloorNumber'],
     floorsTotal: ['Building.FloorsCount'],
@@ -133,7 +156,8 @@ export const CIAN_PROFILE: FeedProfile = {
     finishing: ['Decoration', 'JKSchema.House.Decoration'],
     deadlineYear: ['Building.Deadline.Year', 'JKSchema.House.Deadline.Year'],
     deadlineQuarter: ['Building.Deadline.Quarter', 'JKSchema.House.Deadline.Quarter'],
-    planImageUrl: ['LayoutPhoto.FullUrl', 'Photos.PhotoSchema.FullUrl'],
+    planImageUrl: ['LayoutPhoto.FullUrl'],
+    photos: ['Photos.PhotoSchema.FullUrl'],
     projectName: ['JKSchema.Name'],
     projectUrl: ['JKSchema.Url'],
     developer: ['JKSchema.Developer.Name', 'Building.Developer'],

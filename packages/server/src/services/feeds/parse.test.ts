@@ -146,6 +146,97 @@ describe('ЦИАН', () => {
     expect(byId(parsed.apartments, 'CN-77-009002').finishing).toBe('без отделки')
     expect(byId(parsed.apartments, 'CN-77-009003').finishing).toBe('черновая')
   })
+
+  it('фотографии объявления идут в галерею, а не в планировку', () => {
+    const flat = byId(parsed.apartments, 'CN-77-004410')
+    expect(flat.photos).toEqual([
+      'https://novostroy.example.ru/photos/CN-77-004410-1.jpg',
+      'https://novostroy.example.ru/photos/CN-77-004410-2.jpg',
+    ])
+    expect(flat.planImageUrl).toBe('https://novostroy.example.ru/plans/CN-77-004410.png')
+  })
+})
+
+describe('ЦИАН — боевая выгрузка вторички NDV', () => {
+  const parsed = parseFeedXml(fixture('cian-ndv.xml'), { format: 'cian' })
+
+  it('разбирает все объекты', () => {
+    expect(parsed.total).toBe(6)
+    expect(parsed.apartments).toHaveLength(6)
+    expect(parsed.skipped).toHaveLength(0)
+  })
+
+  it('код 9 — это студия, а не девятикомнатная квартира', () => {
+    const studio = byId(parsed.apartments, 'B76BD12A-87A1-4A15-B067-7592856CFFB7')
+    expect(studio.rooms).toBe(0)
+    expect(studio.planType).toBeNull()
+    expect(studio.area).toBe(29.4)
+  })
+
+  it('коды 1–5 — это комнатность как есть', () => {
+    expect(byId(parsed.apartments, '920BDFA3-446F-4231-93D8-91694F14099F').rooms).toBe(1)
+    expect(byId(parsed.apartments, 'DDA19693-A2A9-4D74-B2D1-046ABB2B9B6B').rooms).toBe(5)
+  })
+
+  it('код 6 — многокомнатная, без числа комнат', () => {
+    const flat = byId(parsed.apartments, 'C07ECBE3-1F1D-46A7-AE39-A188B7B59A85')
+    // Шестёрка означает «больше пяти», а не «шесть»: числом её записать нельзя,
+    // иначе лот всплывёт в поиске шестикомнатных.
+    expect(flat.rooms).toBeNull()
+    expect(flat.planType).toBe('многокомнатная')
+  })
+
+  it('код 7 — свободная планировка, без числа комнат', () => {
+    const flat = byId(parsed.apartments, 'FREE-PLAN-NO-PHOTOS')
+    expect(flat.rooms).toBeNull()
+    expect(flat.planType).toBe('свободная планировка')
+  })
+
+  it('FlatRoomsCount главнее RoomsCount', () => {
+    // Продажа комнаты: RoomsCount — это комнаты всей квартиры, а не лота.
+    // Оба поля здесь совпадают, но приоритет должен быть у FlatRoomsCount —
+    // он заполнен у всех 95 объектов выгрузки, RoomsCount у двух.
+    const room = byId(parsed.apartments, '04BED09F-DC03-4474-AE23-2FCA441AED4A')
+    expect(room.rooms).toBe(2)
+    expect(room.raw['RoomsCount']).toBe('2')
+    expect(room.raw['FlatRoomsCount']).toBe('2')
+  })
+
+  it('забирает всю галерею, но не больше десяти снимков', () => {
+    const gallery = byId(parsed.apartments, '920BDFA3-446F-4231-93D8-91694F14099F').photos
+    expect(gallery).toHaveLength(10)
+    expect(new Set(gallery).size).toBe(10)
+    for (const url of gallery) expect(url).toMatch(/^https:\/\/omut\.ndv\.ru\/file\//)
+    expect(gallery[0]).toBe(
+      'https://omut.ndv.ru/file/6C753A82-D545-4DA9-A4A8-536BE57DAA26/watermark-f79d3-m30/IMG_20260326_175655.png',
+    )
+  })
+
+  it('объявление без фотографий получает пустую галерею, а не выдумку', () => {
+    expect(byId(parsed.apartments, 'FREE-PLAN-NO-PHOTOS').photos).toEqual([])
+  })
+
+  it('без LayoutPhoto планировки нет — первый снимок за неё не выдаётся', () => {
+    // Ровно тот дефект, из-за которого клиент видел фотографию кухни
+    // с подписью «планировка».
+    const flat = byId(parsed.apartments, 'C07ECBE3-1F1D-46A7-AE39-A188B7B59A85')
+    expect(flat.planImageUrl).toBeNull()
+    expect(flat.photos.length).toBeGreaterThan(0)
+  })
+
+  it('LayoutPhoto — это и есть планировка, и она не попадает в галерею', () => {
+    const studio = byId(parsed.apartments, 'B76BD12A-87A1-4A15-B067-7592856CFFB7')
+    expect(studio.planImageUrl).toBe('https://omut.ndv.ru/file/PLAN-B76BD12A/plan.png')
+    expect(studio.photos).toHaveLength(3)
+    expect(studio.photos).not.toContain(studio.planImageUrl)
+  })
+
+  it('берёт ЖК из JKSchema и срок сдачи из корпуса', () => {
+    const studio = byId(parsed.apartments, 'B76BD12A-87A1-4A15-B067-7592856CFFB7')
+    expect(studio.project?.name).toBe('Куркино 15')
+    expect(studio.deadline?.toISOString().slice(0, 10)).toBe('2026-09-30')
+    expect(studio.finishing).toBe('черновая')
+  })
 })
 
 describe('свой формат', () => {

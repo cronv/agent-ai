@@ -73,6 +73,7 @@ function card(overrides: Partial<ApartmentCard> = {}): ApartmentCard {
     metro: null,
     metroDistanceMin: null,
     rooms: 2,
+    planType: null,
     area: 54.2,
     livingArea: null,
     kitchenArea: null,
@@ -89,6 +90,7 @@ function card(overrides: Partial<ApartmentCard> = {}): ApartmentCard {
     euroPlan: null,
     deadline: null,
     planImageUrl: null,
+    photos: [],
     url: null,
     ...overrides,
   }

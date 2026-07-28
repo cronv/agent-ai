@@ -29,7 +29,7 @@ interface MessagesProps {
   error: ChatError | null
   onExample: (text: string) => void
   onRetry: () => void
-  onOpenPlan: (card: ApartmentCard) => void
+  onOpenPlan: (card: ApartmentCard, index: number) => void
   /** Форма контакта или подтверждение отправки. */
   contactSlot?: ComponentChildren
 }

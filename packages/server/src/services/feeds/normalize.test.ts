@@ -14,6 +14,7 @@ import {
   parsePrice,
   parseQuarter,
   parseRooms,
+  parseRoomsCode,
   parseYear,
   quarterEndDate,
   toText,
@@ -97,6 +98,33 @@ describe('parseRooms', () => {
   it('свободную планировку оставляет неизвестной', () => {
     expect(parseRooms('свободная планировка')).toBeNull()
     expect(parseRooms('')).toBeNull()
+  })
+})
+
+describe('parseRoomsCode', () => {
+  it('код 9 — это студия, а не девять комнат', () => {
+    expect(parseRoomsCode('9')).toEqual({ rooms: 0, planType: null })
+  })
+
+  it('коды 1–5 — обычная комнатность', () => {
+    expect(parseRoomsCode('1')).toEqual({ rooms: 1, planType: null })
+    expect(parseRoomsCode(5)).toEqual({ rooms: 5, planType: null })
+  })
+
+  it('коды 6 и 7 не дают числа комнат — только тип планировки', () => {
+    expect(parseRoomsCode('6')).toEqual({ rooms: null, planType: 'многокомнатная' })
+    expect(parseRoomsCode('7')).toEqual({ rooms: null, planType: 'свободная планировка' })
+  })
+
+  it('пустое значение означает «кода нет» — комнатность возьмут из другого поля', () => {
+    expect(parseRoomsCode('')).toBeNull()
+    expect(parseRoomsCode(undefined)).toBeNull()
+    expect(parseRoomsCode('нет данных')).toBeNull()
+  })
+
+  it('кода вне таблицы не выдумывает комнатность', () => {
+    expect(parseRoomsCode('8')).toEqual({ rooms: null, planType: null })
+    expect(parseRoomsCode('12')).toEqual({ rooms: null, planType: null })
   })
 })
 

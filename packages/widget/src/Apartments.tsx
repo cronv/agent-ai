@@ -1,21 +1,26 @@
 import { useState } from 'preact/hooks'
 
-import { CloseIcon, ExpandIcon, LinkIcon, PlanPlaceholderIcon } from './Icons.tsx'
-import { cardTags, formatLocation, formatPrice, formatPricePerM2, formatTitle } from './format.ts'
+import { ArrowIcon, CloseIcon, ExpandIcon, LinkIcon, PlanPlaceholderIcon } from './Icons.tsx'
+import { cardImages, cardTags, formatLocation, formatPrice, formatPricePerM2, formatTitle } from './format.ts'
 import type { ApartmentCard } from './types.ts'
 
 /**
  * Карточка квартиры — главный объект в чате: ради неё всё и затевалось.
  *
  * Данные приходят готовыми в событии `apartments`; текст модели здесь не
- * разбирается вовсе. Порядок чтения задан намеренно: планировка → цена →
+ * разбирается вовсе. Порядок чтения задан намеренно: картинка → цена →
  * что это за квартира → где → кнопка. Человек листает ленту глазами по
- * планировке и цене, остальное читает, только если зацепило.
+ * картинке и цене, остальное читает, только если зацепило.
+ *
+ * Картинка — это планировка, если она есть. Вторичка планировок не отдаёт,
+ * зато отдаёт фотографии: тогда карточка показывает первую и даёт пролистать
+ * остальные. Нет ни того, ни другого — заглушка; сломанной иконки браузера
+ * в дорогой витрине быть не должно.
  */
 
 interface RailProps {
   apartments: ApartmentCard[]
-  onOpenPlan: (card: ApartmentCard) => void
+  onOpenPlan: (card: ApartmentCard, index: number) => void
 }
 
 export function ApartmentRail({ apartments, onOpenPlan }: RailProps) {
@@ -34,7 +39,7 @@ export function ApartmentRail({ apartments, onOpenPlan }: RailProps) {
 
 interface CardProps {
   card: ApartmentCard
-  onOpenPlan: (card: ApartmentCard) => void
+  onOpenPlan: (card: ApartmentCard, index: number) => void
 }
 
 export function ApartmentCardView({ card, onOpenPlan }: CardProps) {
@@ -44,7 +49,7 @@ export function ApartmentCardView({ card, onOpenPlan }: CardProps) {
 
   return (
     <article class="card" role="listitem">
-      <Plan card={card} onOpen={() => onOpenPlan(card)} />
+      <Gallery card={card} onOpen={(index) => onOpenPlan(card, index)} />
 
       <div class="card__body">
         <div class="card__price">{formatPrice(card.price)}</div>
@@ -80,59 +85,120 @@ export function ApartmentCardView({ card, onOpenPlan }: CardProps) {
 }
 
 /**
- * Планировка. Пока картинка не загрузилась — светлая подложка, а не пустота;
- * если ссылка битая или её нет вовсе — аккуратная заглушка. Сломанной иконки
- * браузера в дорогой витрине быть не должно.
+ * Картинка карточки: планировка или фотографии.
+ *
+ * Пока снимок не загрузился — светлая подложка, а не пустота. Битую ссылку
+ * пролистываем дальше: у вторички половина галереи может отвалиться, и это
+ * не повод показывать заглушку, пока есть хоть один живой кадр. Отвалилось
+ * всё — заглушка, та же, что и у лота без картинок вовсе.
  */
-function Plan({ card, onOpen }: { card: ApartmentCard; onOpen: () => void }) {
-  const [failed, setFailed] = useState(false)
+function Gallery({ card, onOpen }: { card: ApartmentCard; onOpen: (index: number) => void }) {
+  const images = cardImages(card)
+  const [index, setIndex] = useState(0)
   const [loaded, setLoaded] = useState(false)
-  const missing = !card.planImageUrl || failed
+  const [broken, setBroken] = useState<string[]>([])
 
-  if (missing) {
+  const alive = images.filter((url) => !broken.includes(url))
+  const current = alive[Math.min(index, alive.length - 1)]
+
+  if (current === undefined) {
     return (
       <div class="plan plan--empty" aria-hidden="true">
         <PlanPlaceholderIcon />
-        <span>Планировка не загружена</span>
+        <span>{card.planImageUrl ? 'Планировка не загружена' : 'Фотографий пока нет'}</span>
       </div>
     )
   }
 
+  const isPlan = current === card.planImageUrl
+  const what = isPlan ? 'планировку' : 'фотографию'
+  const title = `${formatTitle(card)}${card.projectName ? `, ${card.projectName}` : ''}`
+  const position = Math.min(index, alive.length - 1)
+
+  const step = (delta: number): void => {
+    setLoaded(false)
+    setIndex((was) => (Math.min(was, alive.length - 1) + delta + alive.length) % alive.length)
+  }
+
   return (
-    <button
-      type="button"
-      class="plan"
-      onClick={onOpen}
-      aria-label={`Открыть планировку: ${formatTitle(card)}${card.projectName ? `, ${card.projectName}` : ''}`}
-    >
-      <img
-        src={card.planImageUrl ?? ''}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        class={loaded ? 'plan__img plan__img--ready' : 'plan__img'}
-        onLoad={() => setLoaded(true)}
-        onError={() => setFailed(true)}
-      />
+    <div class="plan">
+      <button type="button" class="plan__open" onClick={() => onOpen(position)} aria-label={`Открыть ${what}: ${title}`}>
+        <img
+          // Ключ по адресу: без него Preact переиспользует <img> и на миг
+          // показывает прошлый кадр под новым onLoad.
+          key={current}
+          src={current}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          class={`${isPlan ? 'plan__img' : 'plan__img plan__img--photo'}${loaded ? ' plan__img--ready' : ''}`}
+          onLoad={() => setLoaded(true)}
+          onError={() => setBroken((was) => [...was, current])}
+        />
+      </button>
       <span class="plan__zoom" aria-hidden="true">
         <ExpandIcon size={16} />
       </span>
-    </button>
+      {alive.length > 1 ? (
+        <>
+          <button type="button" class="plan__nav plan__nav--prev" onClick={() => step(-1)} aria-label="Предыдущее фото">
+            <ArrowIcon size={16} />
+          </button>
+          <button type="button" class="plan__nav plan__nav--next" onClick={() => step(1)} aria-label="Следующее фото">
+            <ArrowIcon size={16} />
+          </button>
+          <span class="plan__count">
+            {position + 1}/{alive.length}
+          </span>
+        </>
+      ) : null}
+    </div>
   )
 }
 
-/** Планировка крупно поверх чата. Закрывается кликом по фону и Esc. */
-export function PlanViewer({ card, onClose }: { card: ApartmentCard; onClose: () => void }) {
+/**
+ * Картинка крупно поверх чата. Закрывается кликом по фону и Esc.
+ *
+ * Листается теми же стрелками, что и в карточке: человек, открывший третий
+ * снимок, ожидает увидеть рядом четвёртый, а не возвращаться в ленту.
+ */
+export function PlanViewer({ card, index, onClose }: { card: ApartmentCard; index: number; onClose: () => void }) {
+  const images = cardImages(card)
+  const [position, setPosition] = useState(Math.min(Math.max(index, 0), Math.max(images.length - 1, 0)))
+  const current = images[position] ?? ''
+  const isPlan = current === card.planImageUrl
+  const label = isPlan ? 'Планировка' : 'Фотография'
+
+  const step = (delta: number): void => {
+    setPosition((was) => (was + delta + images.length) % images.length)
+  }
+
   return (
-    <div class="viewer" role="dialog" aria-modal="true" aria-label="Планировка квартиры" onClick={onClose}>
-      <button type="button" class="viewer__close" onClick={onClose} aria-label="Закрыть планировку">
+    <div class="viewer" role="dialog" aria-modal="true" aria-label={`${label} квартиры`} onClick={onClose}>
+      <button type="button" class="viewer__close" onClick={onClose} aria-label="Закрыть">
         <CloseIcon size={18} />
       </button>
       <figure class="viewer__figure" onClick={(event) => event.stopPropagation()}>
-        <img class="viewer__img" src={card.planImageUrl ?? ''} alt={`Планировка: ${formatTitle(card)}`} />
+        <div class="viewer__frame">
+          <img class="viewer__img" src={current} alt={`${label}: ${formatTitle(card)}`} />
+          {images.length > 1 ? (
+            <>
+              <button type="button" class="plan__nav plan__nav--prev" onClick={() => step(-1)} aria-label="Предыдущее фото">
+                <ArrowIcon size={18} />
+              </button>
+              <button type="button" class="plan__nav plan__nav--next" onClick={() => step(1)} aria-label="Следующее фото">
+                <ArrowIcon size={18} />
+              </button>
+            </>
+          ) : null}
+        </div>
         <figcaption class="viewer__caption">
           <b>{formatTitle(card)}</b>
-          <span>{[card.projectName, formatPrice(card.price)].filter(Boolean).join(' · ')}</span>
+          <span>
+            {[card.projectName, formatPrice(card.price), images.length > 1 ? `${position + 1} из ${images.length}` : null]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
         </figcaption>
       </figure>
     </div>

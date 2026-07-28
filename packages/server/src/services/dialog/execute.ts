@@ -110,7 +110,7 @@ async function runSearchApartments(input: Record<string, unknown>, context: Tool
 
   const { total, apartments, empty } = await searchApartments(context.db, params)
 
-  const payload: Record<string, unknown> = { total, shown: apartments.length, apartments }
+  const payload: Record<string, unknown> = { total, shown: apartments.length, apartments: apartments.map(forModel) }
   if (empty) payload['nothing_found'] = describeEmpty(empty)
 
   return {
@@ -120,6 +120,19 @@ async function runSearchApartments(input: Record<string, unknown>, context: Tool
     apartments,
     lead: null,
   }
+}
+
+/**
+ * Карточка в том виде, в каком её читает модель.
+ *
+ * Ссылки на фотографии ей не нужны: показывает их виджет, а в ответе
+ * инструмента десяток URL на каждый из пяти лотов — это сотни токенов ни за
+ * что. Вместо списка уходит их число: «фотографий 12» модель сказать может,
+ * а сами адреса ей ни к чему.
+ */
+function forModel(card: ApartmentCard): Record<string, unknown> {
+  const { photos, ...rest } = card
+  return { ...rest, photoCount: photos.length }
 }
 
 /** Сколько локаций уходит в ответ инструмента: перечень нужен полный, но не бесконечный. */

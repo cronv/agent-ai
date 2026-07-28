@@ -16,6 +16,8 @@ export interface ApartmentCard {
   metro: string | null
   metroDistanceMin: number | null
   rooms: number | null
+  /** «свободная планировка», «многокомнатная» — когда комнатность числом не выражается. */
+  planType?: string | null
   area: number | null
   livingArea: number | null
   kitchenArea: number | null
@@ -29,6 +31,12 @@ export interface ApartmentCard {
   /** Срок сдачи в формате `YYYY-MM-DD`. */
   deadline: string | null
   planImageUrl: string | null
+  /**
+   * Фотографии объекта. Показываются вместо планировки, когда её нет:
+   * во вторичке планировок не дают, а карточка без картинки — не витрина.
+   * У переписок, сохранённых до тикета 20, поля нет вовсе.
+   */
+  photos?: string[]
   url: string | null
 }
 
