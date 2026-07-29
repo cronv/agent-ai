@@ -1,6 +1,6 @@
 import type { Db } from '../../db/prisma.js'
 import { chunkText } from './chunk.js'
-import { KnowledgeExtractionError, extractText } from './extract.js'
+import { KnowledgeExtractionError, NO_TEXT_LAYER_MESSAGE, extractText } from './extract.js'
 
 /**
  * Документы базы знаний: приём файла, нарезка, удаление.
@@ -120,8 +120,11 @@ export async function ingestDocument(db: Db, input: IngestDocumentInput): Promis
     const text = await extractText({ buffer: input.buffer, filename: input.filename, mimeType: input.mimeType })
     chunks = chunkText(text)
     charCount = text.length
+    // Страховка на случай, если текст прошёл проверку в extractText, но
+    // нарезка всё равно ничего не дала: документ без единого фрагмента поиск
+    // не находит, и «готово» на нём — та же ложь.
     if (chunks.length === 0) {
-      failure = 'После разбора файла не осталось текста для поиска'
+      failure = NO_TEXT_LAYER_MESSAGE
     }
   } catch (error) {
     failure =

@@ -271,7 +271,11 @@ export class DialogEngine {
 
         for (const call of calls) {
           if (call.name === 'suggest_replies') {
-            const outcome = await executeTool(call.name, call.input, { db: this.db, conversationId })
+            const outcome = await executeTool(call.name, call.input, {
+              db: this.db,
+              conversationId,
+              today: this.now(),
+            })
             if (outcome.suggestions.length > 0) {
               collected.suggestions = outcome.suggestions
               yield { type: 'suggestions', options: outcome.suggestions }

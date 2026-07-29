@@ -45,6 +45,8 @@ export interface ToolContext {
   conversationId: string
   /** Куда уходит контакт. Тикет 07 подставляет сюда полноценный сервис лидов. */
   saveLead?: LeadHandler
+  /** Сегодняшняя дата — по ней отбраковываются кнопки с прошедшими сроками. */
+  today?: Date
 }
 
 export interface ToolOutcome {
@@ -88,7 +90,7 @@ async function run(name: ToolName, input: Record<string, unknown>, context: Tool
     case 'save_lead':
       return runSaveLead(input, context)
     case 'suggest_replies':
-      return runSuggestReplies(input)
+      return runSuggestReplies(input, context)
   }
 }
 
@@ -102,8 +104,8 @@ async function run(name: ToolName, input: Record<string, unknown>, context: Tool
  * одинокая кнопка выглядит как единственный допустимый ответ, а поле ввода
  * рядом с ней — как декорация.
  */
-function runSuggestReplies(input: Record<string, unknown>): ToolOutcome {
-  const options = pickSuggestions(input['options'])
+function runSuggestReplies(input: Record<string, unknown>, context: ToolContext): ToolOutcome {
+  const options = pickSuggestions(input['options'], context.today ?? new Date())
 
   return {
     name: 'suggest_replies',
@@ -117,8 +119,33 @@ function runSuggestReplies(input: Record<string, unknown>): ToolOutcome {
   }
 }
 
-/** Приводит то, что прислала модель, к списку пригодных для кнопки реплик. */
-export function pickSuggestions(raw: unknown): string[] {
+/**
+ * Зовёт ли реплика в прошлое.
+ *
+ * На подборку со сдачей в июне 2025 модель предложила кнопку «Быстрее,
+ * в 2024-м» — при том, что на дворе 2026-й. Дата в системном контексте есть,
+ * но на кнопки она не распространяется: модель считает год от собственных
+ * представлений о «сейчас». Отсюда проверка здесь, а не только словами
+ * в промпте: год в реплике сверяется с настоящим календарём.
+ *
+ * Сверяется именно год: месяц без года («Хочу к июню») означает ближайший
+ * будущий, и запрещать его нельзя.
+ */
+export function mentionsPastYear(text: string, today: Date): boolean {
+  const current = today.getFullYear()
+  for (const match of text.matchAll(/\b(19|20)\d{2}\b/g)) {
+    if (Number.parseInt(match[0], 10) < current) return true
+  }
+  return false
+}
+
+/**
+ * Приводит то, что прислала модель, к списку пригодных для кнопки реплик.
+ *
+ * Реплика с прошедшим годом выбрасывается целиком, а не правится: «Быстрее,
+ * в 2024-м» без года превращается в «Быстрее», и это уже другая реплика.
+ */
+export function pickSuggestions(raw: unknown, today: Date = new Date()): string[] {
   const seen = new Set<string>()
   const options: string[] = []
 
@@ -128,6 +155,7 @@ export function pickSuggestions(raw: unknown): string[] {
     // они выглядят как часть реплики.
     const text = item.trim().replace(/^[-–—•*"'«]+\s*/u, '').replace(/["'»]+$/u, '').trim()
     if (text === '' || text.length > SUGGESTION_MAX_LENGTH) continue
+    if (mentionsPastYear(text, today)) continue
     const key = text.toLowerCase()
     if (seen.has(key)) continue
     seen.add(key)

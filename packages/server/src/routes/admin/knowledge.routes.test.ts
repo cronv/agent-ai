@@ -124,6 +124,25 @@ describe('/api/admin/knowledge', () => {
     expect(doc.chunkCount).toBeGreaterThan(0)
   })
 
+  it('скан-презентацию принимает, но помечает ошибкой — и она видна в списке', async () => {
+    const response = await upload({
+      filename: 'skan.pdf',
+      contentType: 'application/pdf',
+      content: fixture('skan.pdf'),
+    })
+
+    expect(response.statusCode).toBe(201)
+    const doc = response.json<KnowledgeDocSummary>()
+    expect(doc.status).toBe('error')
+    expect(doc.error).toMatch(/нет текстового слоя/)
+    expect(doc.chunkCount).toBe(0)
+
+    const list = await app.inject({ method: 'GET', url: '/api/admin/knowledge', headers: { cookie } })
+    const listed = list.json<{ documents: KnowledgeDocSummary[] }>().documents[0]
+    expect(listed?.status).toBe('error')
+    expect(listed?.error).toBe(doc.error)
+  })
+
   it('принимает TXT вместе с привязкой к ЖК', async () => {
     const project = await testDb.project.create({ data: { name: 'ЖК Речной', slug: 'rechnoy' } })
 

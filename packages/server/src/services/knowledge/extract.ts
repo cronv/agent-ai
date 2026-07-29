@@ -14,6 +14,13 @@ import { PDFParse } from 'pdf-parse'
  * Любая неудача — это `KnowledgeExtractionError` с текстом, который не стыдно
  * показать человеку в админке. Ошибка не считается сбоем сервера: документ
  * сохраняется со статусом `error`, остальные загрузки продолжают работать.
+ *
+ * Отдельная неудача — файл, который прочитался, но текста в себе не несёт.
+ * Скан-презентация на две страницы дала ровно 32 символа: «-- 1 of 2 --» и
+ * «-- 2 of 2 --», разделители страниц, которые дописывает сам разборщик.
+ * Формально извлечение прошло, документ получил статус «готово», и человек
+ * несколько часов гадал, почему ассистент по нему молчит. Поэтому пустота
+ * проверяется до сохранения и объясняется словами — см. `assertHasContent`.
  */
 
 /** Ошибка, текст которой показывается пользователю как есть. */
@@ -66,13 +73,28 @@ function reason(error: unknown): string {
   return error instanceof Error && error.message !== '' ? error.message : String(error)
 }
 
-async function extractPdf(buffer: Buffer): Promise<string> {
+/**
+ * Результат извлечения: текст и, если формат про это знает, число страниц.
+ * Страницы нужны не для показа, а для оценки плотности текста: 200 символов
+ * на одной странице — памятка, те же 200 на сорока — скан с подписью.
+ */
+interface Extracted {
+  text: string
+  /** `null` — формат постраничного деления не имеет (DOCX, TXT). */
+  pages: number | null
+}
+
+async function extractPdf(buffer: Buffer): Promise<Extracted> {
   // PDFParse держит открытым воркер pdf.js — его обязательно закрывать,
   // иначе процесс не завершается после прогона тестов.
   const parser = new PDFParse({ data: new Uint8Array(buffer) })
   try {
-    const result = await parser.getText()
-    return result.text
+    // pageJoiner по умолчанию дописывает в конец каждой страницы
+    // «-- 1 of 2 --». Это разметка разборщика, а не содержимое файла: попав
+    // в текст, она и делала скан «непустым». Заменяем её пустой строкой —
+    // границу абзаца между страницами она сохраняет, символов не добавляет.
+    const result = await parser.getText({ pageJoiner: '\n\n' })
+    return { text: result.text, pages: result.total }
   } catch (error) {
     throw new KnowledgeExtractionError(`Не удалось прочитать PDF: ${reason(error)}`)
   } finally {
@@ -80,10 +102,10 @@ async function extractPdf(buffer: Buffer): Promise<string> {
   }
 }
 
-async function extractDocx(buffer: Buffer): Promise<string> {
+async function extractDocx(buffer: Buffer): Promise<Extracted> {
   try {
     const result = await mammoth.extractRawText({ buffer })
-    return result.value
+    return { text: result.value, pages: null }
   } catch (error) {
     throw new KnowledgeExtractionError(`Не удалось прочитать DOCX: ${reason(error)}`)
   }
@@ -103,6 +125,55 @@ function extractPlainText(buffer: Buffer): string {
   return text.replace(/\0/g, '')
 }
 
+/**
+ * Сколько в тексте букв и цифр. Пробелы, дефисы, точки и прочая пунктуация не
+ * в счёт: страница из одних разделителей и маркеров списка — это не документ,
+ * сколько бы символов в ней ни было.
+ */
+export function countMeaningfulChars(text: string): number {
+  return (text.match(/[\p{L}\p{N}]/gu) ?? []).length
+}
+
+/**
+ * Ниже этого документ пуст при любом числе страниц.
+ *
+ * Порог намеренно низкий — два слова. «Ипотека от 6% годовых» — короткий, но
+ * настоящий документ, и отбраковать его хуже, чем пропустить: ассистент
+ * ответит хотя бы этим. Основную работу делает не он, а плотность ниже.
+ */
+export const MIN_MEANINGFUL_CHARS = 12
+
+/**
+ * Столько букв и цифр должно приходиться на страницу, когда число страниц
+ * известно.
+ *
+ * Одного общего числа мало: 200 символов на одной странице — нормальная
+ * памятка, те же 200 на сорока страницах — презентация из картинок, у которой
+ * текстом оказались разве что колонтитулы. Страница настоящего документа не
+ * бывает пустее одной строки.
+ */
+export const MIN_CHARS_PER_PAGE = 20
+
+/** Что показать администратору, когда текста в файле нет. */
+export const NO_TEXT_LAYER_MESSAGE =
+  'В файле нет текстового слоя — скорее всего это скан или презентация из картинок. ' +
+  'Текст с изображений мы не распознаём, поэтому отвечать по такому файлу ассистент не сможет. ' +
+  'Загрузите файл, в котором текст выделяется мышью: Word, обычный текст или PDF с текстовым слоем.'
+
+/**
+ * Проверка «в файле есть что читать». Общая для всех форматов: скан бывает
+ * и PDF, и DOCX с одной вставленной картинкой на страницу.
+ */
+export function assertHasContent(text: string, pages: number | null): void {
+  const meaningful = countMeaningfulChars(text)
+  const required =
+    pages !== null && pages > 0 ? Math.max(MIN_MEANINGFUL_CHARS, pages * MIN_CHARS_PER_PAGE) : MIN_MEANINGFUL_CHARS
+
+  if (meaningful < required) {
+    throw new KnowledgeExtractionError(NO_TEXT_LAYER_MESSAGE)
+  }
+}
+
 export async function extractText(input: ExtractInput): Promise<string> {
   if (input.buffer.length === 0) {
     throw new KnowledgeExtractionError('Файл пустой')
@@ -113,18 +184,14 @@ export async function extractText(input: ExtractInput): Promise<string> {
     throw new KnowledgeExtractionError(`Формат файла не поддерживается — нужен ${SUPPORTED_FORMATS_HINT}`)
   }
 
-  const text =
+  const extracted =
     kind === 'pdf'
       ? await extractPdf(input.buffer)
       : kind === 'docx'
         ? await extractDocx(input.buffer)
-        : extractPlainText(input.buffer)
+        : { text: extractPlainText(input.buffer), pages: null }
 
-  if (text.trim() === '') {
-    throw new KnowledgeExtractionError(
-      'В файле не нашлось текста — возможно, это скан или презентация из одних картинок',
-    )
-  }
+  assertHasContent(extracted.text, extracted.pages)
 
-  return text
+  return extracted.text
 }

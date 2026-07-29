@@ -10,6 +10,9 @@ function fixture(name: string): Buffer {
   return readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url))
 }
 
+/** Короткий, но настоящий документ: несколько строк осмысленного текста. */
+const USLOVIYA = 'Ипотека от 6% годовых при первоначальном взносе от 20%. Рассрочка до конца строительства.'
+
 describe('ingestDocument', () => {
   beforeEach(async () => {
     await resetDatabase()
@@ -80,7 +83,7 @@ describe('ingestDocument', () => {
     const doc = await ingestDocument(testDb, {
       filename: 'условия.txt',
       mimeType: 'text/plain',
-      buffer: Buffer.from('Ипотека от 6% годовых.', 'utf8'),
+      buffer: Buffer.from(USLOVIYA, 'utf8'),
       projectId: project.id,
     })
 
@@ -96,7 +99,7 @@ describe('ingestDocument', () => {
       ingestDocument(testDb, {
         filename: 'условия.txt',
         mimeType: 'text/plain',
-        buffer: Buffer.from('Ипотека от 6% годовых.', 'utf8'),
+        buffer: Buffer.from(USLOVIYA, 'utf8'),
         projectId: 'нет-такого-жк',
       }),
     ).rejects.toBeInstanceOf(UnknownProjectError)
@@ -128,6 +131,23 @@ describe('ingestDocument', () => {
     expect(documents).toHaveLength(2)
   })
 
+  it('скан без текстового слоя не становится готовым документом', async () => {
+    const doc = await ingestDocument(testDb, {
+      filename: 'skan.pdf',
+      mimeType: 'application/pdf',
+      buffer: fixture('skan.pdf'),
+    })
+
+    expect(doc.status).toBe('error')
+    expect(doc.error).toMatch(/нет текстового слоя/)
+    expect(doc.chunkCount).toBe(0)
+    expect(doc.charCount).toBe(0)
+
+    // Ни одного фрагмента в поиске: раньше документ считался готовым,
+    // а поиск по нему молчал.
+    expect(await testDb.knowledgeChunk.count()).toBe(0)
+  })
+
   it('неподдерживаемый формат тоже виден в списке с причиной', async () => {
     const doc = await ingestDocument(testDb, {
       filename: 'план.dwg',
@@ -147,7 +167,7 @@ describe('listDocuments', () => {
 
   it('фильтрует по ЖК, а без фильтра отдаёт все', async () => {
     const project = await testDb.project.create({ data: { name: 'ЖК Речной', slug: 'rechnoy' } })
-    const text = Buffer.from('Ипотека от 6% годовых.', 'utf8')
+    const text = Buffer.from(USLOVIYA, 'utf8')
 
     await ingestDocument(testDb, { filename: 'общая.txt', mimeType: 'text/plain', buffer: text })
     await ingestDocument(testDb, {
@@ -172,7 +192,7 @@ describe('deleteDocument', () => {
     const doc = await ingestDocument(testDb, {
       filename: 'условия.txt',
       mimeType: 'text/plain',
-      buffer: Buffer.from('Ипотека от 6% годовых.', 'utf8'),
+      buffer: Buffer.from(USLOVIYA, 'utf8'),
     })
 
     expect(await deleteDocument(testDb, doc.id)).toBe(true)
