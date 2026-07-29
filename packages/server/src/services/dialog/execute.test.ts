@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { ingestDocument } from '../knowledge/index.js'
 import { createApartment, createProject } from '../../testing/catalog.js'
 import { resetDatabase, testDb } from '../../testing/db.js'
-import { executeTool, pickSuggestions } from './execute.js'
+import { executeTool } from './execute.js'
 
 /**
  * Разбор параметров инструментов проверяется на настоящей базе: то, что
@@ -184,58 +184,74 @@ describe('list_projects: пустой ответ называет реальны
   })
 })
 
-describe('suggest_replies: кнопки быстрых ответов', () => {
-  it('пропускает короткие реплики и режет всё, что кнопкой быть не может', () => {
-    expect(pickSuggestions(['Покажи подешевле', 'Другой район', 'Хочу посмотреть'])).toEqual([
-      'Покажи подешевле',
-      'Другой район',
-      'Хочу посмотреть',
-    ])
-
-    // Кавычки и маркеры списка модель добавляет от себя — на кнопке они лишние.
-    expect(pickSuggestions(['«Покажи подешевле»', '— Другой район'])).toEqual(['Покажи подешевле', 'Другой район'])
-
-    // Повтор в другом регистре — это одна и та же кнопка.
-    expect(pickSuggestions(['Подешевле', 'подешевле', 'Другой район'])).toEqual(['Подешевле', 'Другой район'])
+/**
+ * Сданные дома (тикет 24). 69% боевого каталога — построенные корпуса, у
+ * которых срок сдачи стоит в прошлом. Проверяется, что модель этой даты
+ * вообще не видит: увидев «2023-12-31», она послушно напишет «сдача в декабре
+ * 2023-го» про дом, куда можно въехать сегодня.
+ */
+describe('готовность дома доезжает до модели', () => {
+  beforeEach(async () => {
+    await resetDatabase()
   })
 
-  it('длинный вариант выбрасывает, а не обрезает', () => {
-    const long = 'Расскажите подробнее про условия ипотеки в этом жилом комплексе'
-    expect(pickSuggestions([long, 'Подешевле', 'Другой район'])).toEqual(['Подешевле', 'Другой район'])
+  it('вместо срока сданного дома уходят слова, а не дата из прошлого', async () => {
+    const project = await createProject({ name: 'ЖК «Серебро»', slug: 'serebro', district: 'Пушкинский' })
+    await createApartment({
+      projectId: project.id,
+      rooms: 1,
+      price: 6_000_000,
+      deadline: new Date('2023-12-31'),
+      isReady: true,
+    })
+
+    const outcome = await executeTool('search_apartments', {}, { db: testDb, conversationId: 'c1' })
+
+    expect(outcome.content).toContain('"ready":true')
+    expect(outcome.content).toContain('дом построен и введён в эксплуатацию')
+    expect(outcome.content).not.toContain('2023')
+    // Карточка виджета дату сохраняет: показывает он её иначе, чем словом.
+    expect(outcome.apartments[0]?.isReady).toBe(true)
+    expect(outcome.apartments[0]?.deadline).toBe('2023-12-31')
   })
 
-  it('меньше двух пригодных вариантов — кнопок нет вовсе', () => {
-    // Одинокая кнопка читается как единственный допустимый ответ,
-    // а поле ввода рядом с ней — как декорация.
-    expect(pickSuggestions(['Подешевле'])).toEqual([])
-    expect(pickSuggestions('не массив')).toEqual([])
-    expect(pickSuggestions([1, 2, 3])).toEqual([])
+  it('строящийся дом по-прежнему приходит со сроком', async () => {
+    const project = await createProject({ name: 'ЖК «Берег»', slug: 'bereg' })
+    await createApartment({
+      projectId: project.id,
+      price: 7_000_000,
+      deadline: new Date('2027-06-30'),
+      isReady: false,
+    })
+
+    const outcome = await executeTool('search_apartments', {}, { db: testDb, conversationId: 'c1' })
+
+    expect(outcome.content).toContain('"deadline":"2027-06-30"')
+    expect(outcome.content).toContain('"ready":false')
   })
 
-  it('берёт не больше четырёх: дальше это уже меню, а не подсказка', () => {
-    expect(pickSuggestions(['Раз', 'Два', 'Три', 'Четыре', 'Пять'])).toHaveLength(4)
+  it('list_projects называет сданный комплекс сданным и не отдаёт срок в прошлом', async () => {
+    const project = await createProject({
+      name: 'ЖК «Серебро»',
+      slug: 'serebro',
+      deadline: new Date('2023-12-31'),
+    })
+    await createApartment({ projectId: project.id, price: 6_000_000, isReady: true })
+    await createApartment({ projectId: project.id, price: 7_000_000, isReady: true })
+
+    const outcome = await executeTool('list_projects', { name: 'Серебро' }, { db: testDb, conversationId: 'c1' })
+
+    expect(outcome.content).toContain('"ready":true')
+    expect(outcome.content).toContain('"deadline":null')
   })
 
-  it('не зовёт посетителя в прошлое', () => {
-    const today = new Date('2026-07-29T12:00:00Z')
+  it('часть корпусов сдана, часть нет — про готовность комплекса не говорим', async () => {
+    const project = await createProject({ name: 'ЖК «Мишино-2»', slug: 'mishino' })
+    await createApartment({ projectId: project.id, price: 6_000_000, isReady: true })
+    await createApartment({ projectId: project.id, price: 7_000_000, isReady: false })
 
-    // Живой случай: на подборку со сдачей в июне 2025 модель предложила
-    // «Быстрее, в 2024-м».
-    expect(pickSuggestions(['Быстрее, в 2024-м', 'Покажи подешевле', 'Другой район'], today)).toEqual([
-      'Покажи подешевле',
-      'Другой район',
-    ])
+    const outcome = await executeTool('list_projects', { name: 'Мишино' }, { db: testDb, conversationId: 'c1' })
 
-    // Текущий и будущие годы — нормальная реплика.
-    expect(pickSuggestions(['Сдача в 2026 году', 'Готов ждать до 2028-го'], today)).toEqual([
-      'Сдача в 2026 году',
-      'Готов ждать до 2028-го',
-    ])
-
-    // Месяц без года — это ближайший будущий, запрещать его нечем.
-    expect(pickSuggestions(['Хочу к июню', 'Другой район'], today)).toEqual(['Хочу к июню', 'Другой район'])
-
-    // После отбраковки осталась одна кнопка — значит кнопок нет.
-    expect(pickSuggestions(['Сдача в 2024-м', 'Ключи в 2025 году', 'Другой район'], today)).toEqual([])
+    expect(outcome.content).toContain('"ready":null')
   })
 })

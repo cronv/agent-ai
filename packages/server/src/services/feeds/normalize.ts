@@ -245,6 +245,34 @@ export function parseBoolean(value: unknown): boolean | null {
   return null
 }
 
+/** Слова выгрузок, означающие «дом построен и введён». */
+const READY_WORDS = /^(ready|built|completed|сдан|сдано|построен|готов|введ)/i
+
+/** Слова, означающие «дом ещё строится». */
+const UNFINISHED_WORDS = /^(unfinished|building|construct|строит|строящ|возвод|не\s*сдан|не\s*готов)/i
+
+/**
+ * Дом сдан?
+ *
+ *   'ready' | 'сдан' | '1' | 'true'   → true
+ *   'unfinished' | 'строится' | '0'   → false
+ *   'скоро' | ''                      → null
+ *
+ * ДомКлик пишет готовность двумя разными способами: у корпуса словом
+ * (`building_state`), у квартиры числом (`ready_housing`). Разбор один на оба,
+ * иначе профиль не смог бы держать их запасными путями одного поля.
+ *
+ * `null` — это «неизвестно», а не «строится»: у форматов, где такого поля нет
+ * вовсе, объявлять весь каталог строящимся нельзя.
+ */
+export function parseReadiness(value: unknown): boolean | null {
+  const text = toText(value)
+  if (text === null) return null
+  if (READY_WORDS.test(text)) return true
+  if (UNFINISHED_WORDS.test(text)) return false
+  return parseBoolean(text)
+}
+
 /** Номер квартала: '2', 'II', 'second', '2 кв.' → 2. */
 export function parseQuarter(value: unknown): number | null {
   const text = toText(value)

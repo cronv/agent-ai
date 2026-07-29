@@ -165,3 +165,43 @@ describe('buildSystemPrompt: кнопки и выбранные квартиры
     expect(system).toContain('не начинай подбор заново')
   })
 })
+
+describe('buildSystemPrompt: база знаний', () => {
+  it('загруженная база знаний названа источником всего про конкретный ЖК', () => {
+    // Живой дефект: на «где жк школьный» вызывался только list_projects,
+    // и ответом был город с прайсом. Прежняя строка звала в базу знаний
+    // «за ипотекой, рассрочкой, отделкой и инфраструктурой» — про адрес,
+    // транспорт и окружение там не было ни слова.
+    const system = build({ hasKnowledge: true })
+    expect(system).toContain('карточки объектов')
+    expect(system).toContain('кроме цены и комнатности')
+    expect(system).toContain('сначала search_knowledge')
+  })
+
+  it('пустая база знаний запрещает и описания комплексов, не только цифры про деньги', () => {
+    const system = build({ hasKnowledge: false })
+    expect(system).toContain('Описаний комплексов там тоже нет')
+    expect(system).toContain('из общих знаний о городе их не достраивай')
+    // Запрет тикета 17 на месте.
+    expect(system).toContain('названия банков и расчёт платежа не называй')
+  })
+
+  it('перечень локаций прямо объявлен не описанием проекта', () => {
+    const system = build({ locations: [place('Подольск')] })
+    expect(system).toContain('Описанием проекта этот перечень тоже не является')
+    expect(system).toContain('иди в search_knowledge')
+  })
+})
+
+describe('buildSystemPrompt: правила для кнопок', () => {
+  it('требует грамотную надпись и заглавную букву у названий', () => {
+    const system = build({ quickReplies: true })
+    expect(system).toContain('Покажи еще Пкомплексы')
+    expect(system).toContain('«Показать квартиры в «Школьном»»')
+    expect(system).toContain('«ё» пишется')
+  })
+
+  it('без кнопок правил про них нет вовсе', () => {
+    expect(build({ quickReplies: false })).not.toContain('Пкомплексы')
+  })
+})

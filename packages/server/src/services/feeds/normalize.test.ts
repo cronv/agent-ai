@@ -13,6 +13,7 @@ import {
   parseNumber,
   parsePrice,
   parseQuarter,
+  parseReadiness,
   parseRooms,
   parseRoomsCode,
   parseYear,
@@ -161,6 +162,25 @@ describe('parseInteger, parseBoolean, parseYear, parseQuarter', () => {
     expect(parseQuarter('IV')).toBe(4)
     expect(parseQuarter('3')).toBe(3)
     expect(parseQuarter('нет')).toBeNull()
+  })
+})
+
+describe('parseReadiness', () => {
+  it('читает готовность и словом, и числом: у ДомКлика она записана двумя способами', () => {
+    expect(parseReadiness('ready')).toBe(true)
+    expect(parseReadiness('1')).toBe(true)
+    expect(parseReadiness('Сдан')).toBe(true)
+    expect(parseReadiness('построен')).toBe(true)
+    expect(parseReadiness('unfinished')).toBe(false)
+    expect(parseReadiness('0')).toBe(false)
+    expect(parseReadiness('строится')).toBe(false)
+  })
+
+  it('молчание выгрузки — это «неизвестно», а не «строится»', () => {
+    // Иначе форматы без такого поля объявили бы весь каталог стройкой.
+    expect(parseReadiness(null)).toBeNull()
+    expect(parseReadiness('')).toBeNull()
+    expect(parseReadiness('скоро')).toBeNull()
   })
 })
 

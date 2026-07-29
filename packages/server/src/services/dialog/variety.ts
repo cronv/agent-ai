@@ -126,10 +126,23 @@ export function describeVariety(cards: ApartmentCard[]): ShownVariety | null {
     differs: (values) => `отделка — ${values.join(', ')}`,
   })
 
-  compare((card) => card.deadline, {
-    same: () => 'срок сдачи у всех один',
-    differs: () => 'разные сроки сдачи',
-  })
+  // Готовность идёт впереди срока и вместо него: у сданного дома срок стоит
+  // в прошлом, и «срок сдачи у всех один» про декабрь 2023-го — не то, что
+  // нужно сказать человеку, которому можно отдать ключи сегодня.
+  const readiness = knownForAll(cards, (card) => (card.isReady === null ? null : card.isReady))
+  const allReady = readiness !== null && readiness.every((value) => value)
+  if (readiness !== null && new Set(readiness).size > 1) {
+    differs.push('часть домов уже сдана, часть ещё строится')
+  } else if (allReady) {
+    same.push('дома уже сданы, ключи сразу')
+  }
+
+  if (!allReady) {
+    compare((card) => card.deadline, {
+      same: () => 'срок сдачи у всех один',
+      differs: () => 'разные сроки сдачи',
+    })
+  }
 
   const floors = knownForAll(cards, (card) => card.floor)
   if (floors !== null) {

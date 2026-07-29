@@ -23,7 +23,8 @@ import {
 import { areaRange, capitalize, millions, plural, priceRange, roomsGenitive, roomsLabel } from './wording.js'
 import { saveLeadToDatabase, validateLead, type LeadHandler, type SavedLead } from './leads.js'
 import { describeVariety } from './variety.js'
-import { SUGGESTION_MAX, SUGGESTION_MAX_LENGTH, SUGGESTION_MIN, isToolName, type ToolName } from './tools.js'
+import { pickSuggestions } from './suggestions.js'
+import { isToolName, type ToolName } from './tools.js'
 
 /**
  * Исполнение инструментов.
@@ -97,15 +98,13 @@ async function run(name: ToolName, input: Record<string, unknown>, context: Tool
 /**
  * Реплики для кнопок.
  *
- * Проверка здесь строгая, потому что дальше эти строки попадают человеку на
- * кнопку и уходят обратно в диалог как его собственные слова. Длинный вариант
- * не обрезается, а выбрасывается: обрезанная кнопка обещает одно, а отправляет
- * другое. Если после отбраковки осталось меньше двух — кнопок не будет вовсе:
- * одинокая кнопка выглядит как единственный допустимый ответ, а поле ввода
- * рядом с ней — как декорация.
+ * Отбраковка и мелкий ремонт — в `suggestions.ts`; здесь только то, чего там
+ * быть не может: названия каталога, по которым восстанавливается заглавная
+ * буква в «Показать квартиры в школьном». Запрос лёгкий — семь строк на боевых
+ * данных, — и делается он один раз за ход, на завершающем вызове инструмента.
  */
-function runSuggestReplies(input: Record<string, unknown>, context: ToolContext): ToolOutcome {
-  const options = pickSuggestions(input['options'], context.today ?? new Date())
+async function runSuggestReplies(input: Record<string, unknown>, context: ToolContext): Promise<ToolOutcome> {
+  const options = pickSuggestions(input['options'], context.today ?? new Date(), await catalogNames(context.db))
 
   return {
     name: 'suggest_replies',
@@ -120,50 +119,20 @@ function runSuggestReplies(input: Record<string, unknown>, context: ToolContext)
 }
 
 /**
- * Зовёт ли реплика в прошлое.
+ * Названия, по которым узнаётся комплекс или район в надписи на кнопке.
  *
- * На подборку со сдачей в июне 2025 модель предложила кнопку «Быстрее,
- * в 2024-м» — при том, что на дворе 2026-й. Дата в системном контексте есть,
- * но на кнопки она не распространяется: модель считает год от собственных
- * представлений о «сейчас». Отсюда проверка здесь, а не только словами
- * в промпте: год в реплике сверяется с настоящим календарём.
- *
- * Сверяется именно год: месяц без года («Хочу к июню») означает ближайший
- * будущий, и запрещать его нельзя.
+ * Берём и название ЖК, и район: «Показать квартиры в школьном» и «Другой
+ * район, не подольск» — одна и та же ошибка. Выключенные ЖК сюда не попадают:
+ * их нет в чате, и упомянуть их кнопка не может.
  */
-export function mentionsPastYear(text: string, today: Date): boolean {
-  const current = today.getFullYear()
-  for (const match of text.matchAll(/\b(19|20)\d{2}\b/g)) {
-    if (Number.parseInt(match[0], 10) < current) return true
+async function catalogNames(db: Db): Promise<string[]> {
+  const projects = await db.project.findMany({ where: { isActive: true }, select: { name: true, district: true } })
+  const names: string[] = []
+  for (const project of projects) {
+    names.push(project.name)
+    if (project.district !== null) names.push(project.district)
   }
-  return false
-}
-
-/**
- * Приводит то, что прислала модель, к списку пригодных для кнопки реплик.
- *
- * Реплика с прошедшим годом выбрасывается целиком, а не правится: «Быстрее,
- * в 2024-м» без года превращается в «Быстрее», и это уже другая реплика.
- */
-export function pickSuggestions(raw: unknown, today: Date = new Date()): string[] {
-  const seen = new Set<string>()
-  const options: string[] = []
-
-  for (const item of toArray(raw)) {
-    if (typeof item !== 'string') continue
-    // Кавычки и маркеры списка модель иногда добавляет от себя — на кнопке
-    // они выглядят как часть реплики.
-    const text = item.trim().replace(/^[-–—•*"'«]+\s*/u, '').replace(/["'»]+$/u, '').trim()
-    if (text === '' || text.length > SUGGESTION_MAX_LENGTH) continue
-    if (mentionsPastYear(text, today)) continue
-    const key = text.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    options.push(text)
-    if (options.length === SUGGESTION_MAX) break
-  }
-
-  return options.length >= SUGGESTION_MIN ? options : []
+  return names
 }
 
 async function runSearchApartments(input: Record<string, unknown>, context: ToolContext): Promise<ToolOutcome> {
@@ -226,10 +195,20 @@ async function runSearchApartments(input: Record<string, unknown>, context: Tool
  * инструмента десяток URL на каждый из пяти лотов — это сотни токенов ни за
  * что. Вместо списка уходит их число: «фотографий 12» модель сказать может,
  * а сами адреса ей ни к чему.
+ *
+ * У сданного дома вместо `deadline` уходит `handover` — словами. Дата ввода
+ * никуда не делась, она лежит в базе и работает в фильтрах, но модели её
+ * показывать нельзя: увидев «2023-12-31», она послушно пишет «сдача в декабре
+ * 2023-го» — про дом, куда можно въехать сегодня, — и пытается посчитать,
+ * сколько осталось ждать. Убрать дату надёжнее, чем просить её не называть.
  */
 function forModel(card: ApartmentCard): Record<string, unknown> {
-  const { photos, ...rest } = card
-  return { ...rest, photoCount: photos.length }
+  const { photos, isReady, deadline, ...rest } = card
+  const handover =
+    isReady === true
+      ? { ready: true, handover: 'дом построен и введён в эксплуатацию, ключи сразу' }
+      : { ready: isReady, deadline }
+  return { ...rest, ...handover, photoCount: photos.length }
 }
 
 /** Сколько локаций уходит в ответ инструмента: перечень нужен полный, но не бесконечный. */

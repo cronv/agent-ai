@@ -23,6 +23,12 @@ import type { FeedProfile } from './profiles.js'
  *
  * Отдельного поля «район» в формате нет — он вычисляется из адреса и названия
  * комплекса, см. `districtFromComplex`.
+ *
+ * Готовность дома формат сообщает дважды и по-разному: у корпуса словом
+ * (`building_state` = `ready`), у квартиры числом (`ready_housing` = 1).
+ * Оба значения попадают в одно поле `ready` запасными путями — на боевых
+ * данных это 685 лотов из 997, у которых «срок сдачи» иначе оказывается
+ * в прошлом.
  */
 
 /** Сколько символов описания ЖК переносим в карточку комплекса. */
@@ -50,6 +56,10 @@ export const DOMCLICK_PROFILE: FeedProfile = {
     euroPlan: ['euro_plan'],
     deadlineYear: ['_building.built_year'],
     deadlineQuarter: ['_building.ready_quarter'],
+    // Готовность выгрузка сообщает дважды: у квартиры числом, у корпуса словом.
+    // Начинаем с квартиры — она конкретнее: в одном ЖК бывают и сданные корпуса,
+    // и строящиеся.
+    ready: ['ready_housing', '_building.building_state'],
     planImageUrl: ['plan'],
     projectName: ['_complex.name'],
     projectImageUrl: ['_complex.image'],

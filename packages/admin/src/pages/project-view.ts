@@ -84,6 +84,8 @@ export interface ApartmentView {
   section: string | null
   finishing: string | null
   deadline: string | null
+  /** Дом построен и введён в эксплуатацию. */
+  isReady: boolean | null
   planImageUrl: string | null
   photos: string[]
   url: string | null

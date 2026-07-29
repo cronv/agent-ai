@@ -230,6 +230,7 @@ function toApartmentData(
     bathroom: apartment.bathroom,
     euroPlan: apartment.euroPlan,
     deadline: apartment.deadline,
+    isReady: apartment.isReady,
     planImageUrl: apartment.planImageUrl,
     photos: apartment.photos,
     url: apartment.url,

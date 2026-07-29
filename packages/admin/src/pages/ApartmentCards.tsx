@@ -49,7 +49,12 @@ function ApartmentCard({ apartment }: { apartment: ApartmentCardView }): ReactEl
       ? null
       : `${apartment.floor}${apartment.floorsTotal === null ? '' : ` из ${apartment.floorsTotal}`} эт.`,
     apartment.finishing,
-    apartment.deadline === null ? null : `сдача ${formatDate(apartment.deadline)}`,
+    // У сданного дома срок стоит в прошлом — это дата ввода, а не обещание.
+    apartment.isReady === true
+      ? 'дом сдан'
+      : apartment.deadline === null
+        ? null
+        : `сдача ${formatDate(apartment.deadline)}`,
   ].filter((part): part is string => typeof part === 'string' && part !== '')
 
   return (

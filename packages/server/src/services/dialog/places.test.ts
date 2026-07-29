@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { createProject } from '../../testing/catalog.js'
 import { resetDatabase, testDb } from '../../testing/db.js'
-import { findProjectsByPlace } from './places.js'
+import { findProjectsByName, findProjectsByPlace } from './places.js'
 
 /**
  * Поиск по месту проверяется на настоящем Postgres: вся логика — это
@@ -98,5 +98,34 @@ describe('findProjectsByPlace', () => {
   it('выключенные ЖК не показываются', async () => {
     await testDb.project.update({ where: { id: ids.kosmos }, data: { isActive: false } })
     expect(await findProjectsByPlace(testDb, 'Домодедово')).toEqual([])
+  })
+})
+
+describe('findProjectsByName', () => {
+  let ids: Seeded
+
+  beforeEach(async () => {
+    await resetDatabase()
+    ids = await seedCatalog()
+  })
+
+  it('находит комплекс в косвенном падеже', () => {
+    // «Когда сдача Серебра» модель превращает в name: «Серебра». Строгое
+    // вхождение не находило «Серебро», и ассистент отвечал «такого комплекса
+    // у нас нет» — про дом, продающий 220 квартир.
+    return Promise.all([
+      expect(findProjectsByName(testDb, 'Серебра')).resolves.toEqual([ids.serebro]),
+      expect(findProjectsByName(testDb, 'Космоса')).resolves.toEqual([ids.kosmos]),
+      expect(findProjectsByName(testDb, 'Школьном')).resolves.toEqual([ids.shkolny]),
+    ])
+  })
+
+  it('точное вхождение по-прежнему главнее и находит часть названия', async () => {
+    await expect(findProjectsByName(testDb, 'горка')).resolves.toEqual([ids.gorka])
+    await expect(findProjectsByName(testDb, 'Берег')).resolves.toEqual([ids.bereg])
+  })
+
+  it('комплекса, которого нет, не выдумывает', async () => {
+    await expect(findProjectsByName(testDb, 'Северный парк')).resolves.toEqual([])
   })
 })

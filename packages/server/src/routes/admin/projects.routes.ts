@@ -582,6 +582,7 @@ const projectsRoutes: FastifyPluginAsync = async (app) => {
           section: apartment.section,
           finishing: apartment.finishing,
           deadline: apartment.deadline,
+          isReady: apartment.isReady,
           planImageUrl: apartment.planImageUrl,
           photos: apartment.photos,
           url: apartment.url,

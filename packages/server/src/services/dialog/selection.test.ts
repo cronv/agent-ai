@@ -111,6 +111,7 @@ describe('describeChoice', () => {
     bathroom: null,
     euroPlan: null,
     deadline: null,
+    isReady: null,
     planImageUrl: null,
     photos: [] as string[],
     url: null,

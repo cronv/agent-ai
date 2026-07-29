@@ -13,6 +13,7 @@ import {
   parseInteger,
   parsePrice,
   parseQuarter,
+  parseReadiness,
   parseRooms,
   parseRoomsCode,
   parseYear,
@@ -72,6 +73,11 @@ export interface ParsedApartment {
   bathroom: string | null
   euroPlan: boolean | null
   deadline: Date | null
+  /**
+   * Дом уже построен и введён в эксплуатацию. `null` — выгрузка о готовности
+   * ничего не сказала; это не то же самое, что «строится».
+   */
+  isReady: boolean | null
   planImageUrl: string | null
   /** Фотографии объекта в порядке выгрузки, не больше `MAX_PHOTOS`. */
   photos: string[]
@@ -403,6 +409,7 @@ function buildApartment(offer: Record<string, unknown>, profile: FeedProfile): B
     bathroom: normalizeText(pick(offer, profile, 'bathroom'), 120),
     euroPlan: parseBoolean(pick(offer, profile, 'euroPlan')),
     deadline,
+    isReady: parseReadiness(pick(offer, profile, 'ready')),
     planImageUrl: normalizeUrl(pick(offer, profile, 'planImageUrl')),
     photos: pickImages(offer, profile, 'photos'),
     url: normalizeUrl(pick(offer, profile, 'url')),

@@ -94,11 +94,25 @@ export function formatLocation(card: ApartmentCard): string | null {
   return parts.length > 0 ? parts[0]! : null
 }
 
+/**
+ * Готовность дома одной пометкой.
+ *
+ * У сданного корпуса срок сдачи стоит в прошлом — он и есть дата ввода.
+ * «Ключи в IV кв. 2023» на карточке 2026 года читается как сломанная база и
+ * противоречит документам агентства, где написано «построено, сдано, готово
+ * к заселению». Поэтому у сданного дома вместо срока стоит «Дом сдан»:
+ * это и правда, и лучший аргумент — ключи сразу.
+ */
+export function formatHandover(card: ApartmentCard): string | null {
+  if (card.isReady === true) return 'Дом сдан'
+  return formatDeadline(card.deadline)
+}
+
 /** Короткие пометки под ценой: отделка, срок сдачи, корпус. */
 export function cardTags(card: ApartmentCard): string[] {
   const tags = [
     formatFloor(card.floor, card.floorsTotal),
-    formatDeadline(card.deadline),
+    formatHandover(card),
     card.finishing && card.finishing.trim() !== '' ? capitalize(card.finishing) : null,
   ]
   return tags.filter((tag): tag is string => tag !== null)

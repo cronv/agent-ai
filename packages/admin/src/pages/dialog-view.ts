@@ -32,6 +32,8 @@ export interface ApartmentCardView {
   section: string | null
   finishing: string | null
   deadline: string | null
+  /** Дом построен и введён. У переписок, сохранённых до тикета 24, поля нет. */
+  isReady?: boolean | null
   planImageUrl: string | null
   /** Фотографии объекта. У переписок, сохранённых до тикета 20, их нет. */
   photos?: string[]

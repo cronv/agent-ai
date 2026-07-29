@@ -325,6 +325,11 @@ describe('ДомКлик — многокорпусный ЖК', () => {
     expect(byId(parsed.apartments, '5121530').deadline?.toISOString().slice(0, 10)).toBe('2027-03-31')
   })
 
+  it('строящийся корпус помечен как несданный', () => {
+    // ready_housing = 0 у квартиры, building_state = unfinished у корпуса.
+    expect(parsed.apartments.every((flat) => flat.isReady === false)).toBe(true)
+  })
+
   it('лоты разных корпусов получают свой номер корпуса', () => {
     expect(byId(parsed.apartments, '5459177').building).toBe('5')
     expect(byId(parsed.apartments, '5121438').building).toBe('6')
@@ -401,6 +406,12 @@ describe('ДомКлик — негодные лоты', () => {
   it('корпус без квартир не ломает разбор', () => {
     expect(byId(parsed.apartments, 'DK-OK-2').building).toBe('3')
     expect(byId(parsed.apartments, 'DK-OK-2').deadline?.toISOString().slice(0, 10)).toBe('2024-12-31')
+  })
+
+  it('сданный корпус узнаётся по building_state, даже когда у лота нет ready_housing', () => {
+    // Дата ввода при этом остаётся: она правда, просто она в прошлом.
+    expect(byId(parsed.apartments, 'DK-OK-2').isReady).toBe(true)
+    expect(byId(parsed.apartments, 'DK-OK-1').isReady).toBe(false)
   })
 
   it('цена с пробелами читается как число', () => {

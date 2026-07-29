@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { cardHref, cardImages, formatTitle } from './format.ts'
+import { cardHref, cardImages, cardTags, formatHandover, formatTitle } from './format.ts'
 import type { ApartmentCard } from './types.ts'
 
 /**
@@ -109,5 +109,24 @@ describe('cardHref', () => {
     )
     expect(cardHref(card({ url: 'data:text/html,<script>', projectUrl: null }))).toBeNull()
     expect(cardHref(card({ url: '/flat/1', projectUrl: null }))).toBeNull()
+  })
+})
+
+describe('formatHandover', () => {
+  it('сданный дом называется сданным, а не сроком в прошлом', () => {
+    // 69% боевого каталога — построенные дома, и «Ключи в IV кв. 2023»
+    // на карточке 2026 года читается как сломанная база.
+    expect(formatHandover(card({ isReady: true, deadline: '2023-12-31' }))).toBe('Дом сдан')
+    expect(cardTags(card({ isReady: true, deadline: '2023-12-31' }))).toContain('Дом сдан')
+    expect(cardTags(card({ isReady: true, deadline: '2023-12-31' })).join(' ')).not.toContain('2023')
+  })
+
+  it('строящийся дом показывает срок как раньше', () => {
+    expect(formatHandover(card({ isReady: false, deadline: '2027-06-30' }))).toBe('Ключи в II кв. 2027')
+    expect(formatHandover(card({ deadline: '2027-06-30' }))).toBe('Ключи в II кв. 2027')
+  })
+
+  it('переписка, сохранённая до появления признака, не ломает карточку', () => {
+    expect(formatHandover(card({ deadline: null }))).toBeNull()
   })
 })

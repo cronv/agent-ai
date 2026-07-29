@@ -2,7 +2,7 @@ import type { Prisma, ProjectCategory } from '@prisma/client'
 
 import type { Db } from '../../db/prisma.js'
 import { DEFAULT_PROJECT_CATEGORY } from '../../lib/categories.js'
-import { findProjectsByPlace } from './places.js'
+import { findProjectsByName, findProjectsByPlace } from './places.js'
 
 /**
  * Запросы к каталогу, которыми пользуется модель.
@@ -66,6 +66,17 @@ export interface ApartmentCard {
   euroPlan: boolean | null
   /** Срок сдачи в формате `YYYY-MM-DD` или `null`. */
   deadline: string | null
+  /**
+   * Дом уже построен и введён в эксплуатацию.
+   *
+   * Живёт рядом с `deadline`, а не вместо него: у сданного корпуса срок в
+   * выгрузке остаётся правдой, просто он в прошлом. 69% боевого каталога —
+   * сданные дома, и «сдача в декабре 2023-го» на карточке читается как
+   * сломанная база, хотя это сильный аргумент продажи: ключи сразу, ипотека
+   * на готовое, можно приехать и посмотреть. `null` — выгрузка о готовности
+   * ничего не сказала.
+   */
+  isReady: boolean | null
   planImageUrl: string | null
   /**
    * Фотографии объекта. Планировка в карточке главнее: снимки показываются
@@ -219,7 +230,19 @@ export interface ProjectSummary {
   district: string | null
   metro: string | null
   metroDistanceMin: number | null
+  /**
+   * Срок сдачи. У сданного комплекса пуст: там он в прошлом и означает дату
+   * ввода, а не обещание, — см. `ready`.
+   */
   deadline: string | null
+  /**
+   * Дома комплекса построены и введены в эксплуатацию.
+   *
+   * `false` — строится, `null` — часть корпусов сдана, часть нет, или выгрузка
+   * о готовности молчит. Считается по лотам: своего поля у ЖК нет, а корпуса
+   * одного комплекса сдаются по очереди.
+   */
+  ready: boolean | null
   finishing: string | null
   url: string | null
   /** Сколько активных лотов подходит под фильтры. */
@@ -637,16 +660,23 @@ function omit(params: ApartmentSearchParams, keys: (keyof ApartmentSearchParams)
 export async function listProjects(db: Db, params: ProjectFilterParams): Promise<ProjectSummary[]> {
   const projectWhere: Prisma.ProjectWhereInput = { isActive: true }
   if (params.category) projectWhere.category = params.category
+
+  // Название и район каждый дают свой список ЖК; вместе они его сужают,
+  // поэтому берётся пересечение, а не последний из двух.
+  let ids: string[] | null = null
   if (params.name) {
     const needle = cleanProjectName(params.name)
     if (needle === '') return []
-    projectWhere.name = { contains: needle, mode: 'insensitive' }
+    ids = await findProjectsByName(db, needle)
+    if (ids.length === 0) return []
   }
   if (params.district) {
     const found = await findProjectsByPlace(db, params.district)
     if (found.length === 0) return []
-    projectWhere.id = { in: found }
+    ids = ids === null ? found : ids.filter((id) => found.includes(id))
+    if (ids.length === 0) return []
   }
+  if (ids !== null) projectWhere.id = { in: ids }
   if (params.metro) projectWhere.metro = { contains: params.metro, mode: 'insensitive' }
 
   const projects = await db.project.findMany({ where: projectWhere, orderBy: { name: 'asc' } })
@@ -654,21 +684,37 @@ export async function listProjects(db: Db, params: ProjectFilterParams): Promise
 
   const apartmentWhere = buildApartmentWhere({ ...params, projectIds: projects.map((project) => project.id) })
   const grouped = await db.apartment.groupBy({
-    by: ['projectId', 'rooms'],
+    by: ['projectId', 'rooms', 'isReady'],
     where: apartmentWhere,
     _count: { _all: true },
     _min: { price: true },
     _max: { price: true },
   })
 
-  const stats = new Map<string, { count: number; min: number | null; max: number | null; rooms: Set<number> }>()
+  interface ProjectStats {
+    count: number
+    min: number | null
+    max: number | null
+    rooms: Set<number>
+    /** Все встретившиеся значения готовности: одно — по нему и судим. */
+    ready: Set<boolean | null>
+  }
+
+  const stats = new Map<string, ProjectStats>()
   for (const row of grouped) {
     if (row.projectId === null) continue
-    const entry = stats.get(row.projectId) ?? { count: 0, min: null, max: null, rooms: new Set<number>() }
+    const entry = stats.get(row.projectId) ?? {
+      count: 0,
+      min: null,
+      max: null,
+      rooms: new Set<number>(),
+      ready: new Set<boolean | null>(),
+    }
     entry.count += row._count._all
     if (row._min.price !== null) entry.min = entry.min === null ? row._min.price : Math.min(entry.min, row._min.price)
     if (row._max.price !== null) entry.max = entry.max === null ? row._max.price : Math.max(entry.max, row._max.price)
     if (row.rooms !== null) entry.rooms.add(row.rooms)
+    entry.ready.add(row.isReady)
     stats.set(row.projectId, entry)
   }
 
@@ -678,6 +724,7 @@ export async function listProjects(db: Db, params: ProjectFilterParams): Promise
     .filter((project) => (stats.get(project.id)?.count ?? 0) > 0)
     .map((project) => {
       const entry = stats.get(project.id)
+      const ready = summarizeReady(entry?.ready)
       return {
         id: project.id,
         name: project.name,
@@ -686,7 +733,10 @@ export async function listProjects(db: Db, params: ProjectFilterParams): Promise
         district: project.district,
         metro: project.metro,
         metroDistanceMin: project.metroDistanceMin,
-        deadline: toDateString(project.deadline),
+        // Срок сданного дома — это дата ввода в прошлом. Показывать её как
+        // «сдача» нельзя: ровно из-за неё ассистент обещал ключи в 2023 году.
+        deadline: ready === true ? null : toDateString(project.deadline),
+        ready,
         finishing: project.finishing,
         url: project.url,
         apartmentCount: entry?.count ?? 0,
@@ -716,6 +766,20 @@ function cleanProjectName(raw: string): string {
     .split(/\s+/)
     .filter((word) => word !== '' && word.toLowerCase() !== 'жк')
     .join(' ')
+}
+
+/**
+ * Готовность комплекса по готовности его лотов.
+ *
+ * Своего поля у ЖК нет, и взяться ему неоткуда: выгрузка сообщает готовность
+ * корпуса, а корпуса одного комплекса сдаются по очереди. Поэтому «сдан» —
+ * это «сдано всё, что сейчас продаётся»; смешанный и неизвестный случай дают
+ * `null`, и тогда про готовность просто не говорим.
+ */
+function summarizeReady(values: Set<boolean | null> | undefined): boolean | null {
+  if (values === undefined || values.size !== 1) return null
+  const [only] = values
+  return only ?? null
 }
 
 function clampLimit(limit: number | undefined): number {
@@ -749,6 +813,7 @@ function toCard(row: ApartmentRow): ApartmentCard {
     bathroom: row.bathroom,
     euroPlan: row.euroPlan,
     deadline: toDateString(row.deadline),
+    isReady: row.isReady,
     planImageUrl: row.planImageUrl,
     photos: row.photos,
     url: row.url,

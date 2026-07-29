@@ -31,6 +31,7 @@ function card(overrides: Partial<ApartmentCard> = {}): ApartmentCard {
     bathroom: null,
     euroPlan: null,
     deadline: null,
+    isReady: null,
     planImageUrl: null,
     photos: [],
     url: null,

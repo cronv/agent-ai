@@ -92,6 +92,46 @@ async function scoreByNameAndAddress(db: Db, query: string): Promise<ScoredProje
   `
 }
 
+/**
+ * Идентификаторы ЖК по названию, названному как угодно.
+ *
+ *   findProjectsByName(db, 'Серебра')  → ЖК «Серебро»
+ *   findProjectsByName(db, 'Школьном') → ЖК «Школьный» («Альянс»)
+ *
+ * Строгое вхождение здесь ломается на первом же падеже. «Когда сдача Серебра»
+ * модель превращает в name: «Серебра», `contains` не находит «Серебро», и
+ * ассистент отвечает «такого комплекса у нас нет» — про дом, который стоит
+ * в каталоге и продаёт 220 квартир. Это худшая ошибка из возможных: человек
+ * уходит уверенным, что ошибся адресом.
+ *
+ * Поэтому сначала вхождение — оно точнее и покрывает частичные названия
+ * («горка» в «Красная горка»), — а если оно пусто, то те же триграммы, что и
+ * для мест. «Серебра» ↔ «ЖК «Серебро»» дают 0.75, «космоса» ↔ «ЖК «Космос»» —
+ * 0.75, при пороге 0.5 и отсечении по лучшему.
+ *
+ * Пустой список по-прежнему означает «такого ЖК в каталоге нет», и это
+ * честный ответ.
+ */
+export async function findProjectsByName(db: Db, name: string): Promise<string[]> {
+  const query = normalizePlace(name)
+  if (query === '') return []
+
+  const exact = await db.project.findMany({
+    where: { isActive: true, name: { contains: query, mode: 'insensitive' } },
+    select: { id: true },
+  })
+  if (exact.length > 0) return exact.map((row) => row.id)
+
+  const scored = await db.$queryRaw<ScoredProject[]>`
+    SELECT id, word_similarity(${query}, replace(lower(name), 'ё', 'е')) AS score
+      FROM projects
+     WHERE is_active
+       AND word_similarity(${query}, replace(lower(name), 'ё', 'е')) >= ${MIN_SCORE}
+     ORDER BY score DESC
+  `
+  return topMatches(scored)
+}
+
 /** Оставляет лучшие совпадения и всё, что от них почти не отстаёт. */
 function topMatches(rows: ScoredProject[]): string[] {
   const best = rows[0]?.score

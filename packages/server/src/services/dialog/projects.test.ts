@@ -45,6 +45,7 @@ function card(projectId: string | null): ApartmentCard {
     bathroom: null,
     euroPlan: null,
     deadline: null,
+    isReady: null,
     planImageUrl: null,
     photos: [],
     url: null,

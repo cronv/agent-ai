@@ -38,6 +38,7 @@ function card(overrides: Partial<ApartmentCard> = {}): ApartmentCard {
     bathroom: null,
     euroPlan: null,
     deadline: '2027-06-30',
+    isReady: null,
     planImageUrl: null,
     photos: [],
     url: null,
@@ -67,6 +68,26 @@ describe('describeVariety', () => {
     expect(variety?.hint).toContain('практически одинаковы')
     expect(variety?.hint).toContain('Не перечисляй их по одному')
     expect(variety?.hint).toContain('выдумка')
+  })
+
+  it('сданные дома описываются готовностью, а не сроком в прошлом', () => {
+    const variety = describeVariety([
+      card({ isReady: true, deadline: '2023-12-31', floor: 3 }),
+      card({ isReady: true, deadline: '2023-12-31', floor: 9 }),
+    ])
+
+    expect(variety?.same).toContain('дома уже сданы, ключи сразу')
+    expect(variety?.same).not.toContain('срок сдачи у всех один')
+    expect(variety?.differs).not.toContain('разные сроки сдачи')
+  })
+
+  it('часть сдана, часть строится — это отличие, а не общее', () => {
+    const variety = describeVariety([
+      card({ isReady: true, deadline: '2023-12-31' }),
+      card({ isReady: false, deadline: '2027-06-30' }),
+    ])
+
+    expect(variety?.differs).toContain('часть домов уже сдана, часть ещё строится')
   })
 
   it('разные ЖК и комнатности — это уже настоящий выбор, а не копии', () => {
