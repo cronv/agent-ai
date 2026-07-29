@@ -1,4 +1,5 @@
 import type { Db } from '../../db/prisma.js'
+import { categoryLabel, parseProjectCategory } from '../../lib/categories.js'
 import { KNOWLEDGE_SEARCH_LIMIT, searchKnowledge } from '../knowledge/index.js'
 import {
   normalizeFinishing,
@@ -21,6 +22,7 @@ import {
 } from './apartments.js'
 import { areaRange, capitalize, millions, plural, priceRange, roomsGenitive, roomsLabel } from './wording.js'
 import { saveLeadToDatabase, validateLead, type LeadHandler, type SavedLead } from './leads.js'
+import { describeVariety } from './variety.js'
 import { SUGGESTION_MAX, SUGGESTION_MAX_LENGTH, SUGGESTION_MIN, isToolName, type ToolName } from './tools.js'
 
 /**
@@ -166,6 +168,19 @@ async function runSearchApartments(input: Record<string, unknown>, context: Tool
   const payload: Record<string, unknown> = { total, shown: apartments.length, apartments: apartments.map(forModel) }
   if (empty) payload['nothing_found'] = describeEmpty(empty)
 
+  // Чем показанные лоты похожи и чем отличаются — посчитанное, а не угаданное.
+  // Без этого модель, чтобы пять почти одинаковых студий не выглядели копиями,
+  // дописывает им отличия от себя. См. variety.ts.
+  const variety = describeVariety(apartments)
+  if (variety) {
+    payload['how_they_differ'] = {
+      hint: variety.hint,
+      nearly_identical: variety.nearlyIdentical,
+      same: variety.same,
+      differs: variety.differs,
+    }
+  }
+
   return {
     name: 'search_apartments',
     content: stringify(payload),
@@ -226,10 +241,24 @@ function describeEmpty(empty: EmptySearchFacts): Record<string, unknown> {
   }
 }
 
+/**
+ * Названия локаций через запятую, без повторов.
+ *
+ * Одно и то же место может стоять в перечне дважды — в новостройках и в
+ * коммерции это разные строки (см. `listCatalogLocations`). В готовой фразе
+ * для модели такой повтор читается как ошибка: «Химки, Химки».
+ */
+function placeNames(locations: CatalogLocation[]): string {
+  return [...new Set(locations.map((place) => place.name))].join(', ')
+}
+
 /** Перечень локаций в том виде, в каком его читает модель. */
 function toLocationList(locations: CatalogLocation[]): Record<string, unknown>[] {
   return locations.slice(0, LOCATIONS_IN_RESULT).map((place) => ({
     name: place.name,
+    // Направление рядом с локацией: одно и то же место в новостройках и в
+    // коммерции — разные строки, и подменять одно другим нельзя.
+    direction: categoryLabel(place.category),
     apartments: place.apartmentCount,
     rooms: place.rooms,
     price_min: place.priceMin,
@@ -258,7 +287,7 @@ function emptyHint(empty: EmptySearchFacts): string {
   const sentences: string[] = []
 
   if (!empty.placeKnown) {
-    const names = empty.locations.map((place) => place.name).join(', ')
+    const names = placeNames(empty.locations)
     sentences.push(
       `Локации «${empty.place ?? ''}» в каталоге нет — у агентства там нет ни одного объекта.`,
       `Скажи об этом прямо и назови те локации, которые есть: ${names}.`,
@@ -330,15 +359,20 @@ function emptyHint(empty: EmptySearchFacts): string {
 
 async function runListProjects(input: Record<string, unknown>, context: ToolContext): Promise<ToolOutcome> {
   const params: ProjectFilterParams = {}
+  assignDefined(params, 'name', normalizeText(input['name'], 200))
   assignDefined(params, 'district', normalizeText(input['district'], 120))
   assignDefined(params, 'metro', normalizeText(input['metro'], 120))
   assignDefined(params, 'priceMin', parsePrice(input['price_min']))
   assignDefined(params, 'priceMax', parsePrice(input['price_max']))
   assignDefined(params, 'deadlineBefore', parseDate(input['deadline_before']))
+  assignDefined(params, 'category', parseProjectCategory(input['category']))
 
   const projects = await listProjects(context.db, params)
 
-  const payload: Record<string, unknown> = { found: projects.length, projects }
+  const payload: Record<string, unknown> = {
+    found: projects.length,
+    projects: projects.map((project) => ({ ...project, direction: categoryLabel(project.category) })),
+  }
   // Пустой список ЖК модель читает так же неверно, как пустую подборку, — и по
   // тому же поводу зовёт человека в соседний город из общих знаний. Перечень
   // локаций закрывает и этот путь.
@@ -348,7 +382,7 @@ async function runListProjects(input: Record<string, unknown>, context: ToolCont
       hint:
         locations.length === 0
           ? 'Каталог пуст: предлагать нечего.'
-          : `Ни один ЖК не подошёл. Локации каталога, и других у агентства нет: ${locations.map((place) => place.name).join(', ')}. Города вне этого перечня не называй.`,
+          : `Ни один ЖК не подошёл. Локации каталога, и других у агентства нет: ${placeNames(locations)}. Города вне этого перечня не называй.`,
       catalog_locations: toLocationList(locations),
     }
   }
@@ -384,7 +418,9 @@ async function runSearchKnowledge(input: Record<string, unknown>, context: ToolC
 
   return {
     name: 'search_knowledge',
-    content: stringify({ found: fragments.length, fragments }),
+    // `project_id` возвращается разрешённым: модель кладёт в него название ЖК,
+    // а кнопке перехода на комплекс нужен идентификатор — см. projects.ts.
+    content: stringify({ found: fragments.length, fragments, project_id: projectId }),
     isError: false,
     apartments: [],
     lead: null,

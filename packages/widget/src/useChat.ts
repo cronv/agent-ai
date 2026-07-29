@@ -4,7 +4,7 @@ import { ChatApiError, type ChatApi } from './api.ts'
 import { toolLabel } from './format.ts'
 import { ChunkQueue, DEFAULT_PACING, playReply, type PacedChunk, type Pacing } from './pacing.ts'
 import { readPageContext } from './session.ts'
-import type { ApartmentCard, ChatError, FeedItem, SavedLead } from './types.ts'
+import type { ApartmentCard, ChatError, FeedItem, ProjectLink, SavedLead } from './types.ts'
 
 /**
  * Состояние переписки и весь разговор с сервером.
@@ -54,6 +54,13 @@ import type { ApartmentCard, ChatError, FeedItem, SavedLead } from './types.ts'
  *
  * Гаснут кнопки по трём поводам: нажали, начали печатать своё, задали новый
  * вопрос. Все три означают одно — предложенное продолжение больше не к месту.
+ *
+ * ── Про кнопки перехода на ЖК ───────────────────────────────────────────────
+ *
+ * Приходят тем же способом (событие `projects`) и по тем же правилам ждут
+ * конца печати. Решает, показывать ли их, сервер: повод виден из того, какие
+ * инструменты ассистент вызвал за ход. Виджет ничего не выбирает — он рисует
+ * то, что пришло, и гасит это с новым вопросом.
  */
 
 export type ChatPhase = 'idle' | 'waiting' | 'streaming'
@@ -77,13 +84,22 @@ interface ChatState {
   contactAsked: number
   /** Реплики на кнопках под последним ответом. Пусто — кнопок нет. */
   suggestions: string[]
+  /**
+   * Кнопки перехода на карточки ЖК под последним ответом.
+   *
+   * Живут рядом с репликами и по тем же правилам: появляются, когда ответ
+   * допечатан, гаснут с новым вопросом. Отличие одно — набирать их не нужно,
+   * поэтому начатый набор своего сообщения их не гасит: ссылка на ЖК остаётся
+   * полезной, даже когда человек уже пишет следующий вопрос.
+   */
+  projects: ProjectLink[]
   /** Идентификаторы квартир, отмеченных кнопкой «Выбрать». */
   selected: string[]
   historyLoaded: boolean
 }
 
 type Action =
-  | { type: 'history'; items: FeedItem[]; selected: string[] }
+  | { type: 'history'; items: FeedItem[]; selected: string[]; projects: ProjectLink[] }
   | { type: 'ask'; id: string; text: string }
   | { type: 'restart' }
   | { type: 'text'; text: string }
@@ -94,7 +110,7 @@ type Action =
   /** Конец сообщения посреди ответа: написанное уходит в ленту, печать продолжится в новом. */
   | { type: 'split' }
   | { type: 'stream-closed' }
-  | { type: 'finish'; suggestions: string[] }
+  | { type: 'finish'; suggestions: string[]; projects: ProjectLink[] }
   | { type: 'fail'; error: ChatError }
   /** Посетитель начал печатать своё или нажал кнопку — предложенное больше не к месту. */
   | { type: 'hide-suggestions' }
@@ -112,6 +128,7 @@ const INITIAL: ChatState = {
   lead: null,
   contactAsked: 0,
   suggestions: [],
+  projects: [],
   selected: [],
   historyLoaded: false,
 }
@@ -128,7 +145,13 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
     case 'history':
       return state.items.length > 0 || state.draft !== null
         ? { ...state, historyLoaded: true, selected: action.selected }
-        : { ...state, items: action.items, selected: action.selected, historyLoaded: true }
+        : {
+            ...state,
+            items: action.items,
+            selected: action.selected,
+            projects: action.projects,
+            historyLoaded: true,
+          }
 
     // Новый вопрос посреди недопечатанного ответа — обычное дело: то, что
     // ассистент успел сказать, остаётся в ленте законченным сообщением.
@@ -142,6 +165,7 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
         sending: true,
         error: null,
         suggestions: [],
+        projects: [],
       }
 
     // Повтор: реплика посетителя уже в ленте, заново её добавлять не нужно.
@@ -155,6 +179,7 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
         sending: true,
         error: null,
         suggestions: [],
+        projects: [],
       }
 
     case 'text':
@@ -207,6 +232,7 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
         phase: 'idle',
         sending: false,
         suggestions: action.suggestions,
+        projects: action.projects,
       }
     }
 
@@ -222,6 +248,7 @@ export function chatReducer(state: ChatState, action: Action): ChatState {
         sending: false,
         error: action.error,
         suggestions: [],
+        projects: [],
       }
     }
 
@@ -285,6 +312,8 @@ export interface Chat {
   contactAsked: number
   /** Реплики на кнопках под последним ответом. Пусто — кнопок нет. */
   suggestions: string[]
+  /** Кнопки перехода на карточки ЖК под последним ответом. */
+  projects: ProjectLink[]
   /** Квартиры, отмеченные кнопкой «Выбрать»: на карточке стоит «Выбрана». */
   selected: string[]
   /**
@@ -358,6 +387,8 @@ export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOpti
          * допечатался.
          */
         suggestions: [] as string[],
+        /** Кнопки перехода на ЖК — применяются вместе с репликами, после печати. */
+        projects: [] as ProjectLink[],
       }
 
       // Читатель: складывает всё, что прислал сервер, в очередь как есть.
@@ -389,6 +420,9 @@ export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOpti
                 break
               case 'suggestions':
                 outcome.suggestions = event.options
+                break
+              case 'projects':
+                outcome.projects = event.projects
                 break
               case 'lead':
                 dispatch({ type: 'lead', lead: event.lead })
@@ -445,7 +479,9 @@ export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOpti
         if (signal.aborted) return
         if (outcome.failure) dispatch({ type: 'fail', error: outcome.failure })
         // Поток закончился, а `done` не пришло — соединение оборвалось.
-        else if (outcome.finished) dispatch({ type: 'finish', suggestions: outcome.suggestions })
+        else if (outcome.finished) {
+          dispatch({ type: 'finish', suggestions: outcome.suggestions, projects: outcome.projects })
+        }
         else dispatch({ type: 'fail', error: BROKEN_STREAM })
       } finally {
         busyRef.current = false
@@ -487,7 +523,7 @@ export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOpti
               },
         )
         if (items.length > 0 || history.selectedIds.length > 0) {
-          dispatch({ type: 'history', items, selected: history.selectedIds })
+          dispatch({ type: 'history', items, selected: history.selectedIds, projects: history.projects })
         }
       })
       .catch(() => {
@@ -520,6 +556,7 @@ export function useChat({ api, sessionId, pacing = DEFAULT_PACING }: UseChatOpti
     lead: state.lead,
     contactAsked: state.contactAsked,
     suggestions: state.suggestions,
+    projects: state.projects,
     selected: state.selected,
     busy: state.sending,
     send,

@@ -1,7 +1,16 @@
 import { useState } from 'preact/hooks'
 
 import { ArrowIcon, CheckIcon, CloseIcon, ExpandIcon, LinkIcon, PlanPlaceholderIcon } from './Icons.tsx'
-import { cardImages, cardTags, formatLocation, formatPrice, formatPricePerM2, formatTitle } from './format.ts'
+import {
+  cardHref,
+  cardImages,
+  cardTags,
+  formatLocation,
+  formatPrice,
+  formatPricePerM2,
+  formatTitle,
+  webUrl,
+} from './format.ts'
 import type { ApartmentCard } from './types.ts'
 
 /**
@@ -20,6 +29,19 @@ import type { ApartmentCard } from './types.ts'
  * Внизу карточки две кнопки, и спорить друг с другом им нельзя. «Выбрать» —
  * заливка акцентом: это действие ради которого всё и затевалось, менеджер
  * узнает про выбранную квартиру. «Смотреть» — тише, оно уводит с сайта.
+ *
+ * ── Четыре действия на одной карточке ──────────────────────────────────────
+ *
+ * Карточка целиком ведёт на страницу объекта, картинка открывает планировку
+ * крупно, «Выбрать» отмечает квартиру, «Смотреть» — то же, что клик по
+ * карточке, но названное словами. Друг другу они не мешают по одному правилу:
+ * клик, попавший в кнопку или ссылку, обрабатывает она сама, а карточка его
+ * не видит (`closest('a, button')` в `openCard`). Поэтому ни «Выбрать», ни
+ * стрелки галереи, ни планировка не уводят человека со страницы.
+ *
+ * Клавиатуре кликабельная карточка не нужна: по Tab до адреса ведёт ссылка
+ * в названии — обычная `<a>`, с ней работает и «открыть в новой вкладке», и
+ * чтение с экрана. Клик по карточке — удобство для мыши, не единственный путь.
  */
 
 interface RailProps {
@@ -62,16 +84,42 @@ export function ApartmentCardView({ card, onOpenPlan, chosen = false, onSelect }
   const tags = cardTags(card)
   const location = formatLocation(card)
   const perM2 = formatPricePerM2(card.pricePerM2)
+  const href = cardHref(card)
+  // Ведёт ли карточка на саму квартиру или только на комплекс: от этого
+  // зависит подпись кнопки — обещать страницу лота, которой нет, нельзя.
+  const ownPage = webUrl(card.url) !== null
+
+  /**
+   * Клик по карточке. Кнопки и ссылки внутри обрабатывают себя сами: у них
+   * своё действие, и увести человека со страницы оно не должно.
+   */
+  const openCard = (event: MouseEvent): void => {
+    if (href === null) return
+    if ((event.target as HTMLElement | null)?.closest('a, button')) return
+    window.open(href, '_blank', 'noopener,noreferrer')
+  }
 
   return (
-    <article class={chosen ? 'card card--chosen' : 'card'} role="listitem">
+    <article
+      class={`${chosen ? 'card card--chosen' : 'card'}${href ? ' card--linked' : ''}`}
+      role="listitem"
+      {...(href ? { onClick: openCard } : {})}
+    >
       <Gallery card={card} onOpen={(index) => onOpenPlan(card, index)} />
 
       <div class="card__body">
         <div class="card__price">{formatPrice(card.price)}</div>
         {perM2 ? <div class="card__perm2">{perM2}</div> : null}
 
-        <div class="card__title">{formatTitle(card)}</div>
+        <div class="card__title">
+          {href ? (
+            <a class="card__title-link" href={href} target="_blank" rel="noopener noreferrer">
+              {formatTitle(card)}
+            </a>
+          ) : (
+            formatTitle(card)
+          )}
+        </div>
         {card.projectName ? (
           <div class="card__project">
             {card.projectName}
@@ -109,14 +157,14 @@ export function ApartmentCardView({ card, onOpenPlan, chosen = false, onSelect }
             </button>
           ) : null}
 
-          {card.url ? (
+          {href ? (
             <a
               class={onSelect ? 'card__link card__link--quiet' : 'card__link'}
-              href={card.url}
+              href={href}
               target="_blank"
               rel="noopener noreferrer"
             >
-              {onSelect ? 'Смотреть' : 'Смотреть квартиру'}
+              {onSelect ? 'Смотреть' : ownPage ? 'Смотреть квартиру' : 'Смотреть ЖК'}
               <LinkIcon size={14} />
             </a>
           ) : null}
@@ -203,6 +251,13 @@ function Gallery({ card, onOpen }: { card: ApartmentCard; onOpen: (index: number
  *
  * Листается теми же стрелками, что и в карточке: человек, открывший третий
  * снимок, ожидает увидеть рядом четвёртый, а не возвращаться в ленту.
+ *
+ * Под подписью — переходы на сайт: страница квартиры и карточка ЖК. Здесь
+ * разглядывают планировку, и отсюда чаще всего и хотят «посмотреть подробнее»;
+ * возвращаться ради этого в ленту и искать ту же карточку незачем. Кнопки
+ * появляются каждая по своему адресу: нет адреса — нет и кнопки, неактивных
+ * кнопок в никуда не бывает. У лотов ДомКлика своего адреса пока нет вовсе,
+ * поэтому у них остаётся только переход на ЖК.
  */
 export function PlanViewer({ card, index, onClose }: { card: ApartmentCard; index: number; onClose: () => void }) {
   const images = cardImages(card)
@@ -210,6 +265,8 @@ export function PlanViewer({ card, index, onClose }: { card: ApartmentCard; inde
   const current = images[position] ?? ''
   const isPlan = current === card.planImageUrl
   const label = isPlan ? 'Планировка' : 'Фотография'
+  const apartmentUrl = webUrl(card.url)
+  const projectUrl = webUrl(card.projectUrl)
 
   const step = (delta: number): void => {
     setPosition((was) => (was + delta + images.length) % images.length)
@@ -241,6 +298,28 @@ export function PlanViewer({ card, index, onClose }: { card: ApartmentCard; inde
               .filter(Boolean)
               .join(' · ')}
           </span>
+
+          {apartmentUrl || projectUrl ? (
+            <span class="viewer__actions">
+              {apartmentUrl ? (
+                <a class="viewer__link" href={apartmentUrl} target="_blank" rel="noopener noreferrer">
+                  Подробнее о квартире
+                  <LinkIcon size={14} />
+                </a>
+              ) : null}
+              {projectUrl ? (
+                <a
+                  class={apartmentUrl ? 'viewer__link viewer__link--quiet' : 'viewer__link'}
+                  href={projectUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Подробнее о ЖК
+                  <LinkIcon size={14} />
+                </a>
+              ) : null}
+            </span>
+          ) : null}
         </figcaption>
       </figure>
     </div>

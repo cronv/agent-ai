@@ -7,6 +7,29 @@
  * приходят строками, как их сериализует JSON.
  */
 
+/** Направление недвижимости. Значения совпадают с enum `ProjectCategory` на сервере. */
+export type ProjectCategory = 'novostroyki' | 'vtorichka' | 'commercial' | 'suburban'
+
+/** Направление с подписью — справочник для вкладок и для поля в карточке. */
+export interface CategoryOption {
+  value: ProjectCategory
+  label: string
+}
+
+/** То же со счётчиком: вкладки в списке ЖК приходят с сервера уже с числами. */
+export interface CategoryTab extends CategoryOption {
+  count: number
+}
+
+/** Фид, из которого пришли квартиры ЖК: по нему видно, вернётся ли он после удаления. */
+export interface ProjectFeedRef {
+  id: string
+  name: string
+  isActive: boolean
+  /** Сколько ЖК всего кормит этот фид. Больше одного — выключать его опасно. */
+  projectCount: number
+}
+
 export interface ProjectView {
   id: string
   name: string
@@ -21,12 +44,28 @@ export interface ProjectView {
   description: string | null
   url: string | null
   imageUrl: string | null
+  category: ProjectCategory
+  /** Подпись направления: словарь живёт на сервере, здесь его не дублируем. */
+  categoryLabel: string
   isActive: boolean
   createdAt: string
   updatedAt: string
   apartments: { active: number; total: number }
   /** Вилка цен по квартирам в продаже; `null` — продавать нечего. */
   price: { min: number; max: number } | null
+  /** Фиды, поставляющие квартиры этого ЖК. */
+  feeds: ProjectFeedRef[]
+}
+
+/** Ответ `GET /api/admin/projects/:id` — карточка вместе со справочником направлений. */
+export interface ProjectCardResponse extends ProjectView {
+  categories: CategoryOption[]
+}
+
+/** Ответ `GET /api/admin/projects`. */
+export interface ProjectsResponse {
+  projects: ProjectView[]
+  categories: CategoryTab[]
 }
 
 /** Квартира в карточке ЖК. */

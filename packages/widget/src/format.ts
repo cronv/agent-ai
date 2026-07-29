@@ -108,6 +108,31 @@ function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
 
+/**
+ * Куда ведёт карточка квартиры.
+ *
+ * Своя страница лота — лучшее, что можно предложить: человек видит именно ту
+ * квартиру, на которую нажал. Но в выгрузках ДомКлика адреса лота нет вовсе,
+ * есть только картинка планировки, — тогда открывается карточка ЖК: это не то,
+ * что он хотел, но это про тот же дом. Нет ни того, ни другого — `null`,
+ * и карточка остаётся некликабельной. Ссылка в никуда хуже её отсутствия.
+ *
+ * Годятся только http и https. Адреса приходят из выгрузок застройщиков и из
+ * админки, где их уже проверяют, — но по пути они лежат в Json-колонке, а
+ * `javascript:` в атрибуте `href` означает выполнение чужого кода на странице
+ * клиента. Проверка на два байта дешевле такой возможности.
+ */
+export function cardHref(card: ApartmentCard): string | null {
+  return webUrl(card.url) ?? webUrl(card.projectUrl) ?? null
+}
+
+/** Адрес, по которому можно вести человека, или `null`. */
+export function webUrl(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return /^https?:\/\//i.test(trimmed) ? trimmed : null
+}
+
 /** Что показывать, пока ассистент ходит в базу. */
 export function toolLabel(name: string): string {
   switch (name) {

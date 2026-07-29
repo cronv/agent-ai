@@ -3,6 +3,7 @@ import type { Conversation, Message, Prisma } from '@prisma/client'
 import type { Db } from '../../db/prisma.js'
 import type { ApartmentCard } from './apartments.js'
 import type { StoredMessage, StoredToolCall } from './history.js'
+import { PROJECT_LINK_COOLDOWN, parseProjectLinks, type ProjectLink } from './projects.js'
 
 /**
  * Переписка в базе: заведение диалога, чтение истории, запись сообщений.
@@ -57,6 +58,12 @@ export interface DialogContext {
   messagesSinceApartments: number
   /** Контакт уже оставлен — второй раз просить не нужно. */
   leadCaptured: boolean
+  /**
+   * ЖК, ссылки на которые ассистент показывал в последних ответах.
+   * Кнопка на тот же комплекс под каждым сообщением превращается в шум —
+   * см. `PROJECT_LINK_COOLDOWN` в projects.ts.
+   */
+  recentProjectLinks: string[]
 }
 
 export async function loadDialogContext(
@@ -88,12 +95,18 @@ export async function loadDialogContext(
     }
   }
 
+  const recentProjectLinks = new Set<string>()
+  for (const row of ordered.filter((row) => row.role === 'assistant').slice(-PROJECT_LINK_COOLDOWN)) {
+    for (const link of parseProjectLinks(row.projects)) recentProjectLinks.add(link.id)
+  }
+
   return {
     messages: ordered.map(toStoredMessage),
     visitorMessages,
     apartmentsShown,
     messagesSinceApartments,
     leadCaptured: leads > 0,
+    recentProjectLinks: [...recentProjectLinks],
   }
 }
 
@@ -102,6 +115,8 @@ export interface AppendMessageInput {
   role: 'user' | 'assistant'
   content: string
   apartments?: ApartmentCard[] | undefined
+  /** Ссылки на карточки ЖК, показанные этим сообщением. */
+  projects?: ProjectLink[] | undefined
   toolCalls?: StoredToolCall[] | undefined
   model?: string | undefined
   tokensIn?: number | undefined
@@ -116,6 +131,9 @@ export async function appendMessage(db: Db, input: AppendMessageInput): Promise<
   }
   if (input.apartments && input.apartments.length > 0) {
     data.apartments = input.apartments as unknown as Prisma.InputJsonValue
+  }
+  if (input.projects && input.projects.length > 0) {
+    data.projects = input.projects as unknown as Prisma.InputJsonValue
   }
   if (input.toolCalls && input.toolCalls.length > 0) {
     data.toolCalls = input.toolCalls as unknown as Prisma.InputJsonValue

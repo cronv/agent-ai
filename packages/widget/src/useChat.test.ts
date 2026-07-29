@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { chatReducer } from './useChat.ts'
-import type { FeedItem } from './types.ts'
+import type { FeedItem, ProjectLink } from './types.ts'
 
 /**
  * Состояние ленты — чистая функция, и проверяется она без браузера.
@@ -21,6 +21,7 @@ const START = {
   lead: null,
   contactAsked: 0,
   suggestions: [] as string[],
+  projects: [] as ProjectLink[],
   selected: [] as string[],
   historyLoaded: false,
 }
@@ -33,12 +34,12 @@ describe('кнопки быстрых ответов', () => {
     // Пока печатает — кнопок нет, хотя реплики с сервера уже пришли.
     expect(typing.suggestions).toEqual([])
 
-    const done = chatReducer(typing, { type: 'finish', suggestions: ['Подешевле', 'Другой район'] })
+    const done = chatReducer(typing, { type: 'finish', suggestions: ['Подешевле', 'Другой район'], projects: [] })
     expect(done.suggestions).toEqual(['Подешевле', 'Другой район'])
   })
 
   it('гаснут от нового вопроса, от набора текста и от выбора квартиры', () => {
-    const shown = chatReducer(START, { type: 'finish', suggestions: ['Подешевле', 'Другой район'] })
+    const shown = chatReducer(START, { type: 'finish', suggestions: ['Подешевле', 'Другой район'], projects: [] })
 
     expect(chatReducer(shown, { type: 'ask', id: 'u2', text: 'Своё' }).suggestions).toEqual([])
     expect(chatReducer(shown, { type: 'hide-suggestions' }).suggestions).toEqual([])
@@ -46,13 +47,49 @@ describe('кнопки быстрых ответов', () => {
   })
 
   it('под оборванным ответом кнопок нет', () => {
-    const shown = chatReducer(START, { type: 'finish', suggestions: ['Подешевле', 'Другой район'] })
+    const shown = chatReducer(START, { type: 'finish', suggestions: ['Подешевле', 'Другой район'], projects: [] })
     const failed = chatReducer(shown, {
       type: 'fail',
       error: { message: 'Связь прервалась', retriable: true },
     })
 
     expect(failed.suggestions).toEqual([])
+  })
+})
+
+describe('кнопка перехода на карточку ЖК', () => {
+  const kosmos: ProjectLink = { id: 'p1', name: 'ЖК «Космос»', url: 'https://www.ndv.ru/novostrojki/zhk/kosmos' }
+
+  it('появляется вместе с окончанием печати, а не посреди ответа', () => {
+    const asked = chatReducer(START, { type: 'ask', id: 'u1', text: 'Расскажи про Космос' })
+    const typing = chatReducer(asked, { type: 'text', text: 'Космос — это Домодедово.' })
+
+    expect(typing.projects).toEqual([])
+
+    const done = chatReducer(typing, { type: 'finish', suggestions: [], projects: [kosmos] })
+    expect(done.projects).toEqual([kosmos])
+  })
+
+  it('гаснет от нового вопроса и от оборванного ответа', () => {
+    const shown = chatReducer(START, { type: 'finish', suggestions: [], projects: [kosmos] })
+
+    expect(chatReducer(shown, { type: 'ask', id: 'u2', text: 'Своё' }).projects).toEqual([])
+    expect(
+      chatReducer(shown, { type: 'fail', error: { message: 'Связь прервалась', retriable: true } }).projects,
+    ).toEqual([])
+  })
+
+  it('переживает начатый набор своего сообщения: это ссылка, а не подсказка', () => {
+    const shown = chatReducer(START, { type: 'finish', suggestions: ['Подешевле'], projects: [kosmos] })
+    const typing = chatReducer(shown, { type: 'hide-suggestions' })
+
+    expect(typing.suggestions).toEqual([])
+    expect(typing.projects).toEqual([kosmos])
+  })
+
+  it('возвращается из истории — вернувшийся посетитель видит ту же кнопку', () => {
+    const state = chatReducer(START, { type: 'history', items: [], selected: ['a7'], projects: [kosmos] })
+    expect(state.projects).toEqual([kosmos])
   })
 })
 
@@ -93,7 +130,7 @@ describe('выбор квартиры', () => {
   })
 
   it('история возвращает уже выбранное — карточка не предлагает выбрать второй раз', () => {
-    const state = chatReducer(START, { type: 'history', items: [], selected: ['a7'] })
+    const state = chatReducer(START, { type: 'history', items: [], selected: ['a7'], projects: [] })
     expect(state.selected).toEqual(['a7'])
   })
 })

@@ -5,7 +5,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api, errorMessage } from '../lib/api.js'
 import { formatMoneyShort, formatNumber, pluralize } from '../lib/format.js'
 import { useApiQuery } from '../lib/useApiQuery.js'
-import type { ProjectView } from './project-view.js'
+import { FilterChips } from './FilterChips.js'
+import { ProjectDeleteDialog } from './ProjectDeleteDialog.js'
+import type { CategoryTab, ProjectCategory, ProjectView, ProjectsResponse } from './project-view.js'
 import {
   Alert,
   Button,
@@ -15,6 +17,7 @@ import {
   IconProjects,
   IconRefresh,
   IconSearch,
+  IconTrash,
   LoadingBlock,
   PageHeader,
   TBody,
@@ -35,28 +38,48 @@ import {
  *
  * Переключатель в строке — самое частое здесь действие: выключенный ЖК
  * ассистент перестаёт предлагать, а квартиры и переписки остаются целы.
+ *
+ * Направления разделяют каталог: новостройки, вторичка, коммерция, загородная.
+ * Вкладки приходят с сервера вместе со счётчиками — пустое направление тоже
+ * показано, иначе первый такой ЖК некуда было бы перенести. «Все» стоит первой
+ * и открыта по умолчанию: искать ЖК чаще приходится по названию, а не по
+ * направлению.
+ *
+ * Удаление живёт здесь же, но нарочно тише выключателя: оно необратимо и уносит
+ * квартиры комплекса. Подтверждение говорит, сколько именно квартир пропадёт и
+ * вернётся ли ЖК из живого фида, — см. `routes/admin/projects.routes.ts`.
  */
 
+type Tab = ProjectCategory | 'all'
+
 export function ProjectsPage(): ReactElement {
-  const { data, error, loading, refreshing, reload } = useApiQuery<{ projects: ProjectView[] }>('/projects')
+  const { data, error, loading, refreshing, reload } = useApiQuery<ProjectsResponse>('/projects')
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
+  const [tab, setTab] = useState<Tab>('all')
   const [busy, setBusy] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
+  const [removing, setRemoving] = useState<ProjectView | null>(null)
 
   const projects = data?.projects ?? []
+  const categories: CategoryTab[] = data?.categories ?? []
+
+  const inTab = useMemo(
+    () => (tab === 'all' ? projects : projects.filter((project) => project.category === tab)),
+    [projects, tab],
+  )
 
   const found = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    if (needle === '') return projects
-    return projects.filter((project) =>
+    if (needle === '') return inTab
+    return inTab.filter((project) =>
       [project.name, project.developer, project.district, project.metro]
         .filter((value): value is string => typeof value === 'string')
         .some((value) => value.toLowerCase().includes(needle)),
     )
-  }, [projects, query])
+  }, [inTab, query])
 
-  const hidden = projects.filter((project) => !project.isActive).length
+  const hidden = inTab.filter((project) => !project.isActive).length
 
   async function toggleActive(project: ProjectView, isActive: boolean): Promise<void> {
     setBusy(project.id)
@@ -70,6 +93,7 @@ export function ProjectsPage(): ReactElement {
       setBusy(null)
     }
   }
+
 
   return (
     <>
@@ -106,31 +130,49 @@ export function ProjectsPage(): ReactElement {
       {failure ? <Alert tone="danger">{failure}</Alert> : null}
 
       <Card padded={false}>
-        <div className="flex flex-wrap items-end justify-between gap-4 p-5 sm:p-6">
-          <CardHeader
-            title={
-              projects.length > 0
-                ? pluralize(projects.length, ['жилой комплекс', 'жилых комплекса', 'жилых комплексов'])
-                : 'Список ЖК'
-            }
-            description={
-              hidden > 0
-                ? `${formatNumber(hidden)} выключено — ассистент их не предлагает`
-                : 'Все показываются в чате'
-            }
-          />
+        <div className="flex flex-col gap-4 p-5 sm:p-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <CardHeader
+              title={
+                inTab.length > 0
+                  ? pluralize(inTab.length, ['жилой комплекс', 'жилых комплекса', 'жилых комплексов'])
+                  : 'Список ЖК'
+              }
+              description={
+                hidden > 0
+                  ? `${formatNumber(hidden)} выключено — ассистент их не предлагает`
+                  : 'Все показываются в чате'
+              }
+            />
 
-          {projects.length > 3 ? (
-            <label className="relative w-full max-w-xs">
-              <span className="sr-only">Поиск по ЖК</span>
-              <IconSearch className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-faint" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Название, застройщик, район"
-                className="min-h-11 w-full rounded-xl border border-line bg-surface py-2.5 pr-3.5 pl-10 text-sm text-ink transition-colors duration-150 placeholder:text-faint hover:border-faint"
-              />
-            </label>
+            {projects.length > 3 ? (
+              <label className="relative w-full max-w-xs">
+                <span className="sr-only">Поиск по ЖК</span>
+                <IconSearch className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-faint" />
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Название, застройщик, район"
+                  className="min-h-11 w-full rounded-xl border border-line bg-surface py-2.5 pr-3.5 pl-10 text-sm text-ink transition-colors duration-150 placeholder:text-faint hover:border-faint"
+                />
+              </label>
+            ) : null}
+          </div>
+
+          {categories.length > 0 ? (
+            <FilterChips<Tab>
+              legend="Направление"
+              value={tab}
+              onChange={setTab}
+              options={[
+                { value: 'all', label: 'Все', count: projects.length },
+                ...categories.map((category) => ({
+                  value: category.value,
+                  label: category.label,
+                  count: category.count,
+                })),
+              ]}
+            />
           ) : null}
         </div>
 
@@ -156,7 +198,11 @@ export function ProjectsPage(): ReactElement {
             <EmptyState
               compact
               title="Ничего не нашлось"
-              description={`По запросу «${query}» нет ни одного ЖК. Попробуйте короче.`}
+              description={
+                query.trim() === ''
+                  ? 'В этом направлении пока нет ни одного ЖК. Направление задаётся в карточке комплекса.'
+                  : `По запросу «${query}» нет ни одного ЖК. Попробуйте короче.`
+              }
             />
           </div>
         ) : (
@@ -169,6 +215,9 @@ export function ProjectsPage(): ReactElement {
                 <TH align="right">Квартир</TH>
                 <TH align="right">Цены</TH>
                 <TH align="center">В чате</TH>
+                <TH align="right">
+                  <span className="sr-only">Удалить</span>
+                </TH>
               </THead>
               <TBody>
                 {found.map((project) => (
@@ -180,14 +229,20 @@ export function ProjectsPage(): ReactElement {
                       >
                         {project.name}
                       </Link>
-                      {project.metro ? (
-                        <span className="mt-0.5 block text-xs text-faint">
-                          {project.metro}
-                          {project.metroDistanceMin === null
-                            ? null
-                            : `, ${formatNumber(project.metroDistanceMin)} мин`}
-                        </span>
-                      ) : null}
+                      <span className="mt-0.5 block text-xs text-faint">
+                        {[
+                          tab === 'all' ? project.categoryLabel : null,
+                          project.metro
+                            ? `${project.metro}${
+                                project.metroDistanceMin === null
+                                  ? ''
+                                  : `, ${formatNumber(project.metroDistanceMin)} мин`
+                              }`
+                            : null,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </span>
                     </TD>
                     <TD className="text-muted">{project.developer ?? '—'}</TD>
                     <TD className="text-muted">{project.district ?? '—'}</TD>
@@ -216,6 +271,19 @@ export function ProjectsPage(): ReactElement {
                         />
                       </div>
                     </TD>
+                    <TD align="right">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFailure(null)
+                          setRemoving(project)
+                        }}
+                        aria-label={`Удалить «${project.name}»`}
+                        className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-faint transition-colors duration-150 hover:bg-canvas hover:text-danger"
+                      >
+                        <IconTrash className="size-4" />
+                      </button>
+                    </TD>
                   </TR>
                 ))}
               </TBody>
@@ -223,6 +291,15 @@ export function ProjectsPage(): ReactElement {
           </div>
         )}
       </Card>
+
+      <ProjectDeleteDialog
+        project={removing}
+        onClose={() => setRemoving(null)}
+        onDeleted={() => {
+          setRemoving(null)
+          reload()
+        }}
+      />
     </>
   )
 }

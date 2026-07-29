@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { CatalogLocation, PlaceRooms } from './apartments.js'
+import type { CatalogDirection, CatalogLocation, PlaceRooms } from './apartments.js'
 import { buildSystemPrompt, type PromptContext } from './prompt.js'
 
 /**
@@ -16,6 +16,7 @@ function rooms(...items: [number, number, number][]): PlaceRooms[] {
 function place(name: string, overrides: Partial<CatalogLocation> = {}): CatalogLocation {
   return {
     name,
+    category: 'novostroyki',
     apartmentCount: 10,
     rooms: [
       { rooms: 1, count: 6, priceMin: 5_000_000 },
@@ -33,6 +34,7 @@ function build(overrides: Partial<PromptContext> = {}): string {
     today: new Date(Date.UTC(2026, 6, 27)),
     projectCount: 7,
     locations: [],
+    directions: [],
     hasKnowledge: false,
     visitorMessages: 0,
     apartmentsShown: false,
@@ -71,7 +73,7 @@ describe('buildSystemPrompt: локации каталога', () => {
     )
     expect(system).toContain('- Звенигород — 35 квартир: однокомнатные 35 шт. от 5,0 млн ₽')
     expect(system).toContain('Другой локации у нас нет')
-    expect(system).toContain('Самая дешёвая квартира во всём каталоге стоит 5,0 млн ₽')
+    expect(system).toContain('дешевле 5,0 млн ₽ в направлении «Новостройки» нет ничего')
     expect(system).toContain('Поиск он не заменяет никогда')
     expect(system).toContain('а не названия ЖК')
   })
@@ -108,6 +110,38 @@ describe('buildSystemPrompt: локации каталога', () => {
     expect(system).toContain('27 июля 2026 года')
     expect(system).toContain('В каталоге 7 активных ЖК')
     expect(system).toContain('Подборку ты ещё не показывал')
+  })
+})
+
+describe('buildSystemPrompt: направления каталога', () => {
+  const novostroyki: CatalogDirection = { category: 'novostroyki', projectCount: 7, apartmentCount: 997 }
+
+  it('перечисляет то, что есть, и прямо говорит, чего нет', () => {
+    const system = build({ directions: [novostroyki], locations: [place('Химки')] })
+
+    expect(system).toContain('# Направления каталога')
+    expect(system).toContain('- Новостройки: 7 комплексов, 997 объектов в продаже')
+    expect(system).toContain('вторички, коммерции, загородной недвижимости в каталоге нет ни одного объекта')
+    expect(system).toContain('Направления не смешивай')
+  })
+
+  it('локации сгруппированы по направлениям и не выдают одно за другое', () => {
+    const system = build({
+      directions: [novostroyki, { category: 'commercial', projectCount: 1, apartmentCount: 4 }],
+      locations: [
+        place('Химки', { apartmentCount: 183 }),
+        place('Химки', { category: 'commercial', apartmentCount: 4 }),
+      ],
+    })
+
+    const lines = system.split('\n')
+    expect(lines).toContain('Новостройки:')
+    expect(lines).toContain('Коммерция:')
+    expect(system).toContain('Локация относится к тому направлению, под заголовком которого она стоит')
+  })
+
+  it('на пустом каталоге раздела нет', () => {
+    expect(build({ directions: [] })).not.toContain('# Направления каталога')
   })
 })
 

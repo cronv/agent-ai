@@ -253,6 +253,30 @@ describe('listProjects', () => {
 
     expect(names(await listProjects(testDb, { district: 'примор' }))).toEqual(['Приморский дом'])
   })
+
+  it('находит ЖК по названию так, как его произносит человек', async () => {
+    const feed = await createFeed()
+    const kosmos = await createProject({ name: 'ЖК «Космос» (Домодедово)' })
+    const other = await createProject({ name: 'ЖК «Серебро»' })
+    await createApartment({ feedId: feed.id, projectId: kosmos.id })
+    await createApartment({ feedId: feed.id, projectId: other.id })
+
+    for (const asked of ['Космос', 'ЖК Космос', 'жк "космос"', 'космос']) {
+      expect(names(await listProjects(testDb, { name: asked }))).toEqual(['ЖК «Космос» (Домодедово)'])
+    }
+    expect(await listProjects(testDb, { name: 'Изумрудный' })).toEqual([])
+  })
+
+  it('фильтрует по направлению', async () => {
+    const feed = await createFeed()
+    const flats = await createProject({ name: 'Новостройка' })
+    const office = await createProject({ name: 'Бизнес-центр', category: 'commercial' })
+    await createApartment({ feedId: feed.id, projectId: flats.id })
+    await createApartment({ feedId: feed.id, projectId: office.id })
+
+    expect(names(await listProjects(testDb, { category: 'commercial' }))).toEqual(['Бизнес-центр'])
+    expect(names(await listProjects(testDb, { category: 'novostroyki' }))).toEqual(['Новостройка'])
+  })
 })
 
 /**
@@ -278,6 +302,7 @@ describe('listCatalogLocations', () => {
     expect(await listCatalogLocations(testDb)).toEqual([
       {
         name: 'Химки',
+        category: 'novostroyki',
         apartmentCount: 3,
         // Комнатность из двух разных ЖК локации складывается в одну строку.
         rooms: [
@@ -290,6 +315,7 @@ describe('listCatalogLocations', () => {
       },
       {
         name: 'Звенигород',
+        category: 'novostroyki',
         apartmentCount: 1,
         rooms: [{ rooms: 1, count: 1, priceMin: 5_000_000 }],
         priceMin: 5_000_000,
@@ -309,6 +335,7 @@ describe('listCatalogLocations', () => {
     expect(await listCatalogLocations(testDb)).toEqual([
       {
         name: 'Химки',
+        category: 'novostroyki',
         apartmentCount: 1,
         rooms: [{ rooms: 1, count: 1, priceMin: 15_000_000 }],
         priceMin: 15_000_000,

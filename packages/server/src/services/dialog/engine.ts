@@ -1,6 +1,6 @@
 import type { Db } from '../../db/prisma.js'
 import type { SettingsService } from '../settings/index.js'
-import { listCatalogLocations, type ApartmentCard } from './apartments.js'
+import { listCatalogDirections, listCatalogLocations, type ApartmentCard } from './apartments.js'
 import {
   AnthropicModelClient,
   MODEL_ERROR_MESSAGES,
@@ -19,6 +19,7 @@ import { buildHistory, trimHistory, type StoredToolCall } from './history.js'
 import type { LeadHandler, SavedLead } from './leads.js'
 import { chooseModel } from './model.js'
 import { buildSystemPrompt } from './prompt.js'
+import { collectProjectCandidates, resolveProjectLinks, type ProjectLink } from './projects.js'
 import { listSelected } from './selection.js'
 import { dialogTools } from './tools.js'
 
@@ -84,6 +85,8 @@ export type DialogEvent =
   | { type: 'apartments'; apartments: ApartmentCard[] }
   /** Реплики для кнопок быстрого ответа под сообщением. */
   | { type: 'suggestions'; options: string[] }
+  /** Ссылки на карточки ЖК — виджет рисует кнопку перехода на сайт. */
+  | { type: 'projects'; projects: ProjectLink[] }
   /** Контакт сохранён. */
   | { type: 'lead'; lead: SavedLead }
   /** Не получилось. Текст уже пригоден для показа человеку. */
@@ -97,6 +100,8 @@ export interface DialogReply {
   apartments: ApartmentCard[]
   /** Реплики для кнопок; пустой список — кнопок не будет. */
   suggestions: string[]
+  /** Ссылки на карточки ЖК; пустой список — кнопки перехода не будет. */
+  projects: ProjectLink[]
   toolCalls: StoredToolCall[]
   lead: SavedLead | null
   model: string
@@ -169,11 +174,12 @@ export class DialogEngine {
       await appendMessage(this.db, { conversationId, role: 'user', content: text })
     }
 
-    const [context, projectCount, knowledgeDocs, locations, selected] = await Promise.all([
+    const [context, projectCount, knowledgeDocs, locations, directions, selected] = await Promise.all([
       loadDialogContext(this.db, conversationId),
       this.db.project.count({ where: { isActive: true } }),
       this.db.knowledgeDoc.count({ where: { status: 'ready' } }),
       listCatalogLocations(this.db),
+      listCatalogDirections(this.db),
       listSelected(this.db, conversationId),
     ])
 
@@ -182,6 +188,7 @@ export class DialogEngine {
       today: this.now(),
       projectCount,
       locations,
+      directions,
       hasKnowledge: knowledgeDocs > 0,
       visitorMessages: context.visitorMessages,
       apartmentsShown: context.apartmentsShown,
@@ -202,6 +209,7 @@ export class DialogEngine {
       text: '',
       apartments: [] as ApartmentCard[],
       suggestions: [] as string[],
+      projects: [] as ProjectLink[],
       toolCalls: [] as StoredToolCall[],
       lead: null as SavedLead | null,
       usage: { inputTokens: 0, outputTokens: 0 } as ModelUsage,
@@ -350,12 +358,25 @@ export class DialogEngine {
       yield { type: 'error', message: modelError.userMessage }
     }
 
+    // Кнопка перехода на карточку ЖК. Повод виден из того, что произошло за
+    // ход, — модель об этом не спрашивают (почему именно так, см. projects.ts).
+    // Под сообщением об ошибке кнопки нет: там нет и разговора про комплекс.
+    if (!failed) {
+      const candidates = collectProjectCandidates({
+        toolCalls: collected.toolCalls,
+        apartments: collected.apartments,
+      })
+      collected.projects = await resolveProjectLinks(this.db, candidates, context.recentProjectLinks)
+      if (collected.projects.length > 0) yield { type: 'projects', projects: collected.projects }
+    }
+
     const finalText = collected.text.trim() === '' ? EMPTY_REPLY_TEXT : collected.text.trim()
     const saved = await appendMessage(this.db, {
       conversationId,
       role: 'assistant',
       content: finalText,
       apartments: collected.apartments,
+      projects: collected.projects,
       toolCalls: collected.toolCalls,
       model: collected.model,
       tokensIn: collected.usage.inputTokens,
@@ -369,6 +390,7 @@ export class DialogEngine {
         text: finalText,
         apartments: collected.apartments,
         suggestions: collected.suggestions,
+        projects: collected.projects,
         toolCalls: collected.toolCalls,
         lead: collected.lead,
         model: collected.model,

@@ -1,29 +1,76 @@
-import { Prisma } from '@prisma/client'
+import { Prisma, ProjectCategory } from '@prisma/client'
 import type { Project } from '@prisma/client'
 import type { FastifyPluginAsync, FastifyReply } from 'fastify'
 
+import { PROJECT_CATEGORIES, categoryLabel } from '../../lib/categories.js'
 import { uniqueSlug } from '../../lib/slug.js'
 
 /**
  * Жилые комплексы в админке.
  *
- *   GET   /api/admin/projects                 список с числом квартир и вилкой цен
- *   GET   /api/admin/projects/:id             карточка ЖК
- *   PATCH /api/admin/projects/:id             править поля (PUT — синоним)
- *   POST  /api/admin/projects/:id/active      переключатель «показывать в чате»
- *   GET   /api/admin/projects/:id/apartments  квартиры ЖК с фильтрами
+ *   GET    /api/admin/projects                 список с числом квартир и вилкой цен
+ *   GET    /api/admin/projects/:id             карточка ЖК
+ *   PATCH  /api/admin/projects/:id             править поля (PUT — синоним)
+ *   POST   /api/admin/projects/:id/active      переключатель «показывать в чате»
+ *   DELETE /api/admin/projects/:id             удалить ЖК вместе с его квартирами
+ *   GET    /api/admin/projects/:id/apartments  квартиры ЖК с фильтрами
  *
  * ЖК заводит импорт фида по названию из выгрузки — руками они не создаются.
  * Админка дополняет карточку тем, чего в фиде нет: район, метро, срок сдачи,
- * отделка, описание. Поэтому здесь нет POST на создание и DELETE: удаление ЖК
- * оставило бы его квартиры без привязки, а выключенный ЖК решает ту же задачу —
- * ассистент перестаёт его предлагать, история переписок остаётся целой.
+ * отделка, описание. Поэтому здесь нет POST на создание.
+ *
+ * ── Про удаление ───────────────────────────────────────────────────────────
+ *
+ * Удаление — не замена выключателю, а уборка мусора: ошибочно созданной записи,
+ * дубля из кривой выгрузки, комплекса, которого у агентства никогда не было.
+ * Выключенный ЖК (`isActive = false`) остаётся штатным способом «убрать из
+ * чата, ничего не теряя», и никуда не девается.
+ *
+ * Квартиры уходят вместе с ЖК. Оставить их — значит получить лоты без привязки,
+ * которые поиск по-прежнему показывает (см. `visibleApartments` в
+ * `services/dialog/apartments.ts`): ассистент предлагал бы квартиры комплекса,
+ * который администратор только что удалил, и не мог бы сказать, что это за дом.
+ * Сохранённые переписки и лиды не страдают: карточки в них лежат снимком в Json,
+ * внешних ключей на квартиры там нет.
+ *
+ * Документы базы знаний, привязанные к ЖК, остаются: это материал агентства,
+ * загруженный руками, и удалять его заодно нельзя. Они просто теряют привязку
+ * (`onDelete: SetNull`) и продолжают отвечать как общие.
+ *
+ * Живой фид заведёт удалённый ЖК заново на ближайшей синхронизации — по
+ * названию из выгрузки. Поэтому маршрут отказывает: 409 со списком фидов,
+ * поимённо и с числом ЖК в каждом. `?force=true` означает «администратор про
+ * фиды знает»: админка ставит его только после того, как показала это окном
+ * подтверждения, а не заранее. Данные у сервера свежее клиентских, и отказ
+ * тому, кто фидов не видел, — не формальность: за минуту до удаления фид мог
+ * включить кто-то другой.
  *
  * Всё под `/api/admin/` уже закрыто хуком из `plugins/auth.ts`.
  */
 
 interface ProjectParams {
   id: string
+}
+
+/** Направления с подписями — справочник для вкладок и для поля в карточке. */
+const CATEGORY_OPTIONS = PROJECT_CATEGORIES.map((category) => ({
+  value: category,
+  label: categoryLabel(category),
+}))
+
+/** Фид, из которого пришли квартиры ЖК: по нему понятно, воскреснет ли он. */
+export interface ProjectFeedRef {
+  id: string
+  name: string
+  isActive: boolean
+  /**
+   * Сколько ЖК всего кормит этот фид.
+   *
+   * Больше одного — выключать его ради удаления одной записи нельзя: встанет
+   * обновление цен и остатков по всему остальному каталогу. Админка на это
+   * число и смотрит, предлагать ли выключение.
+   */
+  projectCount: number
 }
 
 /** Изменяемые поля карточки. Всё, кроме названия, может быть пустым. */
@@ -39,6 +86,7 @@ interface ProjectBody {
   description?: string | null
   url?: string | null
   imageUrl?: string | null
+  category?: ProjectCategory
   isActive?: boolean
 }
 
@@ -54,6 +102,7 @@ const projectBodyProperties = {
   description: { type: ['string', 'null'], maxLength: 20000 },
   url: { type: ['string', 'null'], maxLength: 2000 },
   imageUrl: { type: ['string', 'null'], maxLength: 2000 },
+  category: { type: 'string', enum: [...PROJECT_CATEGORIES] },
   isActive: { type: 'boolean' },
 } as const
 
@@ -80,6 +129,11 @@ export interface ProjectStats {
   apartments: { active: number; total: number }
   /** Вилка цен по активным квартирам; если активных нет — `null`. */
   price: { min: number; max: number } | null
+  /**
+   * Фиды, из которых пришли квартиры этого ЖК. Нужны удалению: пока хоть один
+   * из них включён, удалённый ЖК вернётся на ближайшей синхронизации.
+   */
+  feeds: ProjectFeedRef[]
 }
 
 /** ЖК в том виде, в каком его показывает админка. */
@@ -97,12 +151,15 @@ export interface ProjectView extends ProjectStats {
   description: string | null
   url: string | null
   imageUrl: string | null
+  category: ProjectCategory
+  /** Подпись направления — чтобы админка не держала второй словарь. */
+  categoryLabel: string
   isActive: boolean
   createdAt: Date
   updatedAt: Date
 }
 
-const NO_STATS: ProjectStats = { apartments: { active: 0, total: 0 }, price: null }
+const NO_STATS: ProjectStats = { apartments: { active: 0, total: 0 }, price: null, feeds: [] }
 
 function toProjectView(project: Project, stats: ProjectStats = NO_STATS): ProjectView {
   return {
@@ -119,6 +176,8 @@ function toProjectView(project: Project, stats: ProjectStats = NO_STATS): Projec
     description: project.description,
     url: project.url,
     imageUrl: project.imageUrl,
+    category: project.category,
+    categoryLabel: categoryLabel(project.category),
     isActive: project.isActive,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
@@ -206,6 +265,7 @@ function buildProjectData(body: ProjectBody): Prisma.ProjectUncheckedUpdateInput
   if (deadline !== undefined) data.deadline = deadline
 
   if (body.metroDistanceMin !== undefined) data.metroDistanceMin = body.metroDistanceMin
+  if (body.category !== undefined) data.category = body.category
   if (body.isActive !== undefined) data.isActive = body.isActive
 
   return data
@@ -253,7 +313,7 @@ const projectsRoutes: FastifyPluginAsync = async (app) => {
    * которого уже нет в продаже, значит вводить менеджера в заблуждение.
    */
   async function collectStats(): Promise<Map<string, ProjectStats>> {
-    const [totals, actives] = await Promise.all([
+    const [totals, actives, byFeed, feeds] = await Promise.all([
       app.prisma.apartment.groupBy({
         by: ['projectId'],
         where: { projectId: { not: null } },
@@ -266,21 +326,51 @@ const projectsRoutes: FastifyPluginAsync = async (app) => {
         _min: { price: true },
         _max: { price: true },
       }),
+      app.prisma.apartment.groupBy({
+        by: ['projectId', 'feedId'],
+        where: { projectId: { not: null } },
+        _count: { _all: true },
+      }),
+      app.prisma.feed.findMany({ select: { id: true, name: true, isActive: true } }),
     ])
 
+    const feedById = new Map(feeds.map((feed) => [feed.id, feed]))
+    // Сколько ЖК кормит каждый фид: одна выгрузка обычно заводит их пачкой.
+    const projectsPerFeed = new Map<string, number>()
+    for (const row of byFeed) {
+      if (!row.projectId) continue
+      projectsPerFeed.set(row.feedId, (projectsPerFeed.get(row.feedId) ?? 0) + 1)
+    }
+    const blank = (): ProjectStats => ({ apartments: { active: 0, total: 0 }, price: null, feeds: [] })
+
     const stats = new Map<string, ProjectStats>()
+    const entry = (projectId: string): ProjectStats => {
+      const found = stats.get(projectId) ?? blank()
+      stats.set(projectId, found)
+      return found
+    }
+
     for (const row of totals) {
       if (!row.projectId) continue
-      stats.set(row.projectId, { apartments: { active: 0, total: row._count._all }, price: null })
+      entry(row.projectId).apartments.total = row._count._all
     }
     for (const row of actives) {
       if (!row.projectId) continue
-      const current = stats.get(row.projectId) ?? { apartments: { active: 0, total: 0 }, price: null }
+      const current = entry(row.projectId)
+      current.apartments.active = row._count._all
       const min = row._min.price
       const max = row._max.price
-      stats.set(row.projectId, {
-        apartments: { active: row._count._all, total: current.apartments.total },
-        price: min === null || max === null ? null : { min, max },
+      current.price = min === null || max === null ? null : { min, max }
+    }
+    for (const row of byFeed) {
+      if (!row.projectId) continue
+      const feed = feedById.get(row.feedId)
+      if (!feed) continue
+      entry(row.projectId).feeds.push({
+        id: feed.id,
+        name: feed.name,
+        isActive: feed.isActive,
+        projectCount: projectsPerFeed.get(feed.id) ?? 1,
       })
     }
     return stats
@@ -297,13 +387,25 @@ const projectsRoutes: FastifyPluginAsync = async (app) => {
     ])
     return reply.send({
       projects: projects.map((project) => toProjectView(project, stats.get(project.id) ?? NO_STATS)),
+      // Направления приходят с сервера вместе со счётчиками: вкладка «Коммерция»
+      // должна быть на месте и тогда, когда коммерции в каталоге ещё нет, —
+      // иначе некуда перенести первый такой ЖК.
+      categories: CATEGORY_OPTIONS.map((option) => ({
+        ...option,
+        count: projects.filter((project) => project.category === option.value).length,
+      })),
     })
   })
 
   app.get<{ Params: ProjectParams }>('/api/admin/projects/:id', async (request, reply) => {
     const project = await app.prisma.project.findUnique({ where: { id: request.params.id } })
     if (!project) return notFound(reply)
-    return reply.send(toProjectView(project, await statsFor(project.id)))
+    return reply.send({
+      ...toProjectView(project, await statsFor(project.id)),
+      // Справочник направлений едет вместе с карточкой: он статичен, а без
+      // него админке пришлось бы тянуть весь список ЖК ради четырёх подписей.
+      categories: CATEGORY_OPTIONS,
+    })
   })
 
   const updateHandler = async (
@@ -360,6 +462,60 @@ const projectsRoutes: FastifyPluginAsync = async (app) => {
         data: { isActive: request.body.isActive },
       })
       return reply.send(toProjectView(project, await statsFor(project.id)))
+    },
+  )
+
+  /**
+   * Удаление ЖК вместе с его квартирами.
+   *
+   *   DELETE /api/admin/projects/:id            откажет, если ЖК кормит живой фид
+   *   DELETE /api/admin/projects/:id?force=true удалит всё равно
+   *
+   * Отказ — не каприз: удалённый ЖК вернётся из выгрузки вместе со всеми
+   * квартирами, и администратор решит, что кнопка сломана. Поэтому в ответе
+   * поимённо перечислены включённые фиды, из которых пришли его квартиры.
+   */
+  app.delete<{ Params: ProjectParams; Querystring: { force?: boolean } }>(
+    '/api/admin/projects/:id',
+    { schema: { querystring: { type: 'object', properties: { force: { type: 'boolean' } }, additionalProperties: false } } },
+    async (request, reply) => {
+      const project = await app.prisma.project.findUnique({ where: { id: request.params.id } })
+      if (!project) return notFound(reply)
+
+      const stats = await statsFor(project.id)
+      const liveFeeds = stats.feeds.filter((feed) => feed.isActive)
+
+      if (liveFeeds.length > 0 && request.query.force !== true) {
+        const names = liveFeeds.map((feed) => `«${feed.name}»`).join(', ')
+        return reply.code(409).send({
+          error: 'feed_active',
+          message:
+            `Квартиры этого ЖК приходят из ${liveFeeds.length === 1 ? 'включённого фида' : 'включённых фидов'} ${names}. ` +
+            'Следующая синхронизация заведёт комплекс заново по названию из выгрузки. ' +
+            `Сначала выключите ${liveFeeds.length === 1 ? 'его' : 'их'} в разделе «Фиды» — или удалите, зная, что ЖК вернётся.`,
+          feeds: liveFeeds,
+        })
+      }
+
+      const knowledgeDocs = await app.prisma.knowledgeDoc.count({ where: { projectId: project.id } })
+
+      // Квартиры уходят вместе с ЖК одной транзакцией: половина удаления —
+      // это лоты без комплекса, которые ассистент продолжает предлагать.
+      const [removed] = await app.prisma.$transaction([
+        app.prisma.apartment.deleteMany({ where: { projectId: project.id } }),
+        app.prisma.project.delete({ where: { id: project.id } }),
+      ])
+
+      return reply.send({
+        ok: true,
+        id: project.id,
+        name: project.name,
+        apartmentsDeleted: removed.count,
+        /** Документы базы знаний остались, но потеряли привязку к ЖК. */
+        knowledgeDocsUnlinked: knowledgeDocs,
+        /** Фиды, которые заведут ЖК заново. Админка честно об этом говорит. */
+        activeFeeds: liveFeeds,
+      })
     },
   )
 

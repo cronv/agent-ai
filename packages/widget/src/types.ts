@@ -38,6 +38,21 @@ export interface ApartmentCard {
    */
   photos?: string[]
   url: string | null
+  /**
+   * Адрес карточки ЖК на сайте агентства.
+   *
+   * Запасной адрес для клика по карточке: у лота из ДомКлика своего адреса нет
+   * вовсе, и без этого поля вести человека было бы некуда. У переписок,
+   * сохранённых до тикета 22, поля нет — тогда его просто нет.
+   */
+  projectUrl?: string | null
+}
+
+/** Ссылка на карточку ЖК — кнопка перехода под ответом ассистента. */
+export interface ProjectLink {
+  id: string
+  name: string
+  url: string
 }
 
 /** Публичные настройки — `GET /api/widget/config`. */
@@ -72,6 +87,8 @@ export type ChatStreamEvent =
   | { type: 'apartments'; apartments: ApartmentCard[] }
   /** Реплики для кнопок под ответом — их придумала модель, не виджет. */
   | { type: 'suggestions'; options: string[] }
+  /** Кнопки перехода на карточки ЖК: повод для них решил сервер. */
+  | { type: 'projects'; projects: ProjectLink[] }
   | { type: 'lead'; lead: SavedLead }
   | { type: 'error'; message: string }
   | { type: 'done' }
@@ -82,6 +99,8 @@ export interface HistoryMessage {
   role: 'user' | 'assistant'
   content: string
   apartments: ApartmentCard[]
+  /** Кнопки перехода на ЖК, которые были под этим ответом. */
+  projects?: ProjectLink[]
   createdAt: string
 }
 
@@ -90,6 +109,13 @@ export interface ChatHistory {
   messages: HistoryMessage[]
   /** Идентификаторы квартир, отмеченных кнопкой «Выбрать» за этот диалог. */
   selectedIds: string[]
+  /**
+   * Кнопки перехода на ЖК из последнего ответа ассистента.
+   *
+   * Только из последнего: под каждым ответом переписки они превратились бы
+   * в частокол ссылок, а к месту они там, где разговор остановился.
+   */
+  projects: ProjectLink[]
 }
 
 /** Ответ `POST /api/chat/select` — итог нажатия «Выбрать» на карточке. */

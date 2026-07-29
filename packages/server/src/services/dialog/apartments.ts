@@ -1,6 +1,7 @@
-import type { Prisma } from '@prisma/client'
+import type { Prisma, ProjectCategory } from '@prisma/client'
 
 import type { Db } from '../../db/prisma.js'
+import { DEFAULT_PROJECT_CATEGORY } from '../../lib/categories.js'
 import { findProjectsByPlace } from './places.js'
 
 /**
@@ -72,6 +73,14 @@ export interface ApartmentCard {
    */
   photos: string[]
   url: string | null
+  /**
+   * Адрес карточки ЖК на сайте агентства.
+   *
+   * Нужен карточке в чате: у лота из ДомКлика своего адреса нет вовсе, и без
+   * этого поля клик по карточке было бы некуда вести. Когда у квартиры есть
+   * `url`, он главнее — человек хочет попасть на ту квартиру, которую видит.
+   */
+  projectUrl: string | null
 }
 
 export interface ApartmentSearchParams {
@@ -110,6 +119,15 @@ export interface ApartmentSearchResult {
 export interface CatalogLocation {
   /** Место так, как оно записано в каталоге: «Химки», «Пушкинский». */
   name: string
+  /**
+   * Направление, к которому относится это место.
+   *
+   * Локация принадлежит направлению, а не каталогу вообще: «Химки» в
+   * новостройках и «Химки» в коммерции — две разные строки перечня. Иначе
+   * ассистент, увидев город в списке, предложит там квартиру, а есть там
+   * только склад.
+   */
+  category: ProjectCategory
   /** Активных лотов в этом месте. */
   apartmentCount: number
   /**
@@ -181,17 +199,22 @@ export interface PlaceRooms {
 }
 
 export interface ProjectFilterParams {
+  /** Название ЖК или его часть — так, как его назвал человек. */
+  name?: string | undefined
   district?: string | undefined
   metro?: string | undefined
   priceMin?: number | undefined
   priceMax?: number | undefined
   deadlineBefore?: Date | undefined
+  /** Направление: новостройки, вторичка, коммерция, загородная. */
+  category?: ProjectCategory | undefined
 }
 
 /** ЖК с диапазоном цен и количеством свободных лотов. */
 export interface ProjectSummary {
   id: string
   name: string
+  category: ProjectCategory
   developer: string | null
   district: string | null
   metro: string | null
@@ -216,6 +239,7 @@ const CARD_INCLUDE = {
       district: true,
       metro: true,
       metroDistanceMin: true,
+      url: true,
     },
   },
 } satisfies Prisma.ApartmentInclude
@@ -366,7 +390,10 @@ const PLACELESS = 'Без указания района'
  */
 export async function listCatalogLocations(db: Db): Promise<CatalogLocation[]> {
   const [projects, grouped] = await Promise.all([
-    db.project.findMany({ where: { isActive: true }, select: { id: true, name: true, district: true } }),
+    db.project.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, district: true, category: true },
+    }),
     db.apartment.groupBy({
       by: ['projectId', 'rooms'],
       where: visibleApartments(),
@@ -377,19 +404,37 @@ export async function listCatalogLocations(db: Db): Promise<CatalogLocation[]> {
   ])
 
   interface PlaceStats {
+    name: string
+    category: ProjectCategory
     count: number
     min: number | null
     max: number | null
     rooms: Map<number, PlaceRooms>
   }
 
-  const placeOf = new Map(projects.map((project) => [project.id, placeOfProject(project)]))
+  const projectById = new Map(projects.map((project) => [project.id, project]))
   const places = new Map<string, PlaceStats>()
 
   for (const row of grouped) {
-    const name = row.projectId === null ? PLACELESS : placeOf.get(row.projectId)
-    if (name === undefined) continue
-    const entry = places.get(name) ?? { count: 0, min: null, max: null, rooms: new Map<number, PlaceRooms>() }
+    const project = row.projectId === null ? null : projectById.get(row.projectId)
+    // Лот привязан к ЖК, которого нет среди активных, — его в перечне быть
+    // не должно: он и в выдачу не попадёт.
+    if (row.projectId !== null && project === undefined) continue
+
+    const name = project === null || project === undefined ? PLACELESS : placeOfProject(project)
+    const category = project?.category ?? DEFAULT_PROJECT_CATEGORY
+    // Ключ по паре «направление + место»: одно и то же место в разных
+    // направлениях — разные строки перечня.
+    const key = `${category}|${name}`
+
+    const entry = places.get(key) ?? {
+      name,
+      category,
+      count: 0,
+      min: null,
+      max: null,
+      rooms: new Map<number, PlaceRooms>(),
+    }
     entry.count += row._count._all
     if (row._min.price !== null) entry.min = entry.min === null ? row._min.price : Math.min(entry.min, row._min.price)
     if (row._max.price !== null) entry.max = entry.max === null ? row._max.price : Math.max(entry.max, row._max.price)
@@ -403,18 +448,70 @@ export async function listCatalogLocations(db: Db): Promise<CatalogLocation[]> {
         priceMin: seen === undefined ? priceMin : Math.min(seen.priceMin, priceMin),
       })
     }
-    places.set(name, entry)
+    places.set(key, entry)
   }
 
-  return [...places]
-    .map(([name, entry]) => ({
-      name,
+  return [...places.values()]
+    .map((entry) => ({
+      name: entry.name,
+      category: entry.category,
       apartmentCount: entry.count,
       rooms: [...entry.rooms.values()].sort((a, b) => a.rooms - b.rooms),
       priceMin: entry.min ?? 0,
       priceMax: entry.max ?? 0,
     }))
     .sort((a, b) => b.apartmentCount - a.apartmentCount || a.name.localeCompare(b.name, 'ru'))
+}
+
+/** Направление каталога с тем, сколько в нём объектов. */
+export interface CatalogDirection {
+  category: ProjectCategory
+  /** Активных ЖК этого направления. */
+  projectCount: number
+  /** Активных лотов во всех его ЖК. */
+  apartmentCount: number
+}
+
+/**
+ * Какие направления есть в каталоге и сколько в них объектов.
+ *
+ * Возвращаются только непустые: направление, в котором ноль ЖК, — это ровно
+ * то, чего у агентства нет, и модель должна узнавать об этом из отсутствия
+ * строки, а не из строки с нулём (ноль она читает как «мало», а не «нет»).
+ * Чего именно нет, промпт скажет отдельной фразой — см. `prompt.ts`.
+ */
+export async function listCatalogDirections(db: Db): Promise<CatalogDirection[]> {
+  const [projects, grouped] = await Promise.all([
+    db.project.findMany({ where: { isActive: true }, select: { id: true, category: true } }),
+    db.apartment.groupBy({ by: ['projectId'], where: visibleApartments(), _count: { _all: true } }),
+  ])
+
+  const categoryOf = new Map(projects.map((project) => [project.id, project.category]))
+  const directions = new Map<ProjectCategory, CatalogDirection>()
+
+  const entry = (category: ProjectCategory): CatalogDirection => {
+    const found = directions.get(category) ?? { category, projectCount: 0, apartmentCount: 0 }
+    directions.set(category, found)
+    return found
+  }
+
+  for (const project of projects) entry(project.category).projectCount += 1
+  for (const row of grouped) {
+    // Лот без ЖК направления не знает. Приписать его новостройкам можно только
+    // тогда, когда новостройки в каталоге уже есть: иначе в промпте появится
+    // «Новостройки: 0 комплексов, 12 объектов» — направление, которого нет,
+    // объявленное существующим.
+    const category =
+      row.projectId === null
+        ? directions.has(DEFAULT_PROJECT_CATEGORY)
+          ? DEFAULT_PROJECT_CATEGORY
+          : undefined
+        : categoryOf.get(row.projectId)
+    if (category === undefined) continue
+    entry(category).apartmentCount += row._count._all
+  }
+
+  return [...directions.values()].sort((a, b) => b.apartmentCount - a.apartmentCount)
 }
 
 /** Район, а если он не заполнен — название ЖК: место должно быть хоть как-то названо. */
@@ -539,6 +636,12 @@ function omit(params: ApartmentSearchParams, keys: (keyof ApartmentSearchParams)
 
 export async function listProjects(db: Db, params: ProjectFilterParams): Promise<ProjectSummary[]> {
   const projectWhere: Prisma.ProjectWhereInput = { isActive: true }
+  if (params.category) projectWhere.category = params.category
+  if (params.name) {
+    const needle = cleanProjectName(params.name)
+    if (needle === '') return []
+    projectWhere.name = { contains: needle, mode: 'insensitive' }
+  }
   if (params.district) {
     const found = await findProjectsByPlace(db, params.district)
     if (found.length === 0) return []
@@ -578,6 +681,7 @@ export async function listProjects(db: Db, params: ProjectFilterParams): Promise
       return {
         id: project.id,
         name: project.name,
+        category: project.category,
         developer: project.developer,
         district: project.district,
         metro: project.metro,
@@ -591,6 +695,27 @@ export async function listProjects(db: Db, params: ProjectFilterParams): Promise
         roomsAvailable: [...(entry?.rooms ?? [])].sort((a, b) => a - b),
       }
     })
+}
+
+/**
+ * Название ЖК так, как его говорит человек, → то, что можно искать в базе.
+ *
+ * В базе комплекс записан «ЖК «Космос» (Домодедово)», а спрашивают про него
+ * «Космос», «ЖК Космос», «жк "космос"». Сравнивать это целиком бессмысленно,
+ * поэтому от запроса остаётся только само имя: слово «ЖК», кавычки и уточнение
+ * в скобках убираются, дальше работает поиск по вхождению.
+ *
+ * Слово «ЖК» выбрасывается по списку слов, а не регулярным выражением с `\b`:
+ * границы слова в JavaScript считаются по латинице, и на кириллице такое
+ * выражение молча не срабатывает.
+ */
+function cleanProjectName(raw: string): string {
+  return raw
+    .replace(/\(.*?\)/g, ' ')
+    .replace(/[«»"'`]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word !== '' && word.toLowerCase() !== 'жк')
+    .join(' ')
 }
 
 function clampLimit(limit: number | undefined): number {
@@ -627,6 +752,7 @@ function toCard(row: ApartmentRow): ApartmentCard {
     planImageUrl: row.planImageUrl,
     photos: row.photos,
     url: row.url,
+    projectUrl: row.project?.url ?? null,
   }
 }
 

@@ -275,6 +275,37 @@ export const styles = `
   transform: translateY(-1px);
 }
 
+/* Переход на карточку ЖК. Не кнопка быстрого ответа: она уводит с сайта,
+   поэтому и выглядит иначе — карточкой со ссылкой, а не «таблеткой». */
+.links { display: flex; flex-wrap: wrap; gap: 8px; animation: fade-up .26s var(--ease) both; }
+.link-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  padding: 9px 13px;
+  border: 1px solid rgba(var(--accent-rgb), .3);
+  border-radius: 14px;
+  background: rgba(var(--accent-rgb), .06);
+  color: var(--accent-deep);
+  text-decoration: none;
+  transition: border-color .18s ease, background .18s ease, transform .18s var(--ease);
+}
+.link-card:hover {
+  border-color: rgba(var(--accent-rgb), .6);
+  background: rgba(var(--accent-rgb), .1);
+  transform: translateY(-1px);
+}
+.link-card__text { display: flex; min-width: 0; flex-direction: column; }
+.link-card__hint { font-size: 11.5px; color: var(--ink-3); }
+.link-card__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ── «Печатает» ───────────────────────────────────────────── */
 
 .thinking { display: flex; align-items: center; gap: 9px; color: var(--ink-3); font-size: 13.5px; }
@@ -468,6 +499,13 @@ export const styles = `
 }
 .card__perm2 { margin-top: 2px; font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .card__title { margin-top: 10px; font-size: 14.5px; font-weight: 550; }
+/* Карточка целиком ведёт на страницу объекта — курсор об этом и говорит.
+   Ссылка в названии нужна клавиатуре и «открыть в новой вкладке»; выглядит
+   она как обычный заголовок, чтобы карточка не рябила подчёркиваниями. */
+.card--linked { cursor: pointer; }
+.card__title-link { color: inherit; text-decoration: none; }
+.card--linked:hover .card__title-link { color: var(--accent-deep); }
+.card__title-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .card__project { margin-top: 3px; display: flex; flex-direction: column; font-size: 13px; color: var(--ink-2); }
 .card__location { font-size: 12.5px; color: var(--ink-3); }
 .card__tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
@@ -592,6 +630,31 @@ export const styles = `
 }
 .viewer__caption { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--ink-3); }
 .viewer__caption b { font-size: 15px; font-weight: 600; color: var(--ink); }
+/* Переходы на сайт под подписью: сначала квартира, потом ЖК. На узком экране
+   ложатся в столбец — кнопка во всю ширину привычнее, чем две в обрез. */
+.viewer__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.viewer__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background .18s ease, color .18s ease;
+}
+.viewer__link:hover { background: var(--accent-deep); }
+.viewer__link--quiet {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+}
+.viewer__link--quiet:hover { background: var(--surface-2); color: var(--ink); border-color: var(--ink-3); }
 .viewer__close {
   position: absolute;
   top: 14px;

@@ -1,4 +1,7 @@
-import type { CatalogLocation } from './apartments.js'
+import type { ProjectCategory } from '@prisma/client'
+
+import { PROJECT_CATEGORIES, categoryGenitive, categoryLabel } from '../../lib/categories.js'
+import type { CatalogDirection, CatalogLocation } from './apartments.js'
 import { millions, plural, roomsLabel } from './wording.js'
 
 /**
@@ -34,6 +37,8 @@ export interface PromptContext {
   projectCount: number
   /** Весь географический охват каталога — см. `listCatalogLocations`. */
   locations: CatalogLocation[]
+  /** Направления, которые в каталоге есть, — см. `listCatalogDirections`. */
+  directions: CatalogDirection[]
   /** Есть ли что-нибудь в базе знаний. */
   hasKnowledge: boolean
   /** Сколько сообщений написал посетитель за всю переписку. */
@@ -75,10 +80,46 @@ export function buildSystemPrompt(context: PromptContext): string {
   }
 
   const now = `# Сейчас\n\n${lines.map((line) => `- ${line}`).join('\n')}`
+  const kinds = directionsBlock(context.directions)
   const places = locationsBlock(context.locations)
   const buttons = context.quickReplies ? QUICK_REPLIES_BLOCK : ''
 
-  return [context.basePrompt.trim(), now, places, buttons].filter((part) => part !== '').join('\n\n')
+  return [context.basePrompt.trim(), now, kinds, places, buttons].filter((part) => part !== '').join('\n\n')
+}
+
+/**
+ * Направления каталога.
+ *
+ * Нужен по той же причине, что и перечень локаций: без него «а загородные дома
+ * у вас есть?» упирается в общие знания модели, и она отвечает про рынок, а не
+ * про агентство. Здесь же прямо сказано, чего у агентства нет, — и отказ
+ * получается коротким и честным, без похода в поиск за пустотой.
+ */
+function directionsBlock(directions: CatalogDirection[]): string {
+  if (directions.length === 0) return ''
+
+  const present = new Set(directions.map((item) => item.category))
+  const missing = PROJECT_CATEGORIES.filter((category) => !present.has(category))
+
+  const lines = directions.map(
+    (item) =>
+      `- ${categoryLabel(item.category)}: ${item.projectCount} ${plural(item.projectCount, 'комплекс', 'комплекса', 'комплексов')}, ` +
+      `${item.apartmentCount} ${plural(item.apartmentCount, 'объект', 'объекта', 'объектов')} в продаже`,
+  )
+
+  const tail: string[] = []
+  if (missing.length > 0) {
+    tail.push(
+      `Ничего другого у агентства нет: ${missing.map(categoryGenitive).join(', ')} в каталоге нет ни одного объекта. ` +
+        'Спросили про такое направление — скажи прямо, что этим агентство сейчас не занимается, и предложи то, что есть. ' +
+        'Не ищи их поиском: он вернёт квартиры в новостройках и выдаст их за ответ.',
+    )
+  }
+  tail.push(
+    'Направления не смешивай: локации и цены ниже относятся к своему направлению и ничего не говорят про остальные.',
+  )
+
+  return ['# Направления каталога', '', lines.join('\n'), '', tail.join(' ')].join('\n')
 }
 
 /**
@@ -118,43 +159,68 @@ const LOCATIONS_NAMED = 60
 function locationsBlock(locations: CatalogLocation[]): string {
   if (locations.length === 0) return ''
 
-  const detailed = locations.slice(0, LOCATIONS_IN_DETAIL)
-  const rest = locations.slice(LOCATIONS_IN_DETAIL)
-
-  const lines = detailed.map(
-    (place) =>
-      `- ${place.name} — ${place.apartmentCount} ${plural(place.apartmentCount, 'квартира', 'квартиры', 'квартир')}: ` +
-      place.rooms
-        .map((item) => `${roomsLabel(item.rooms)} ${item.count} шт. от ${millions(item.priceMin)}`)
-        .join('; '),
-  )
-
-  if (rest.length > 0 && rest.length <= LOCATIONS_NAMED) {
-    lines.push(`- и ещё: ${rest.map((place) => place.name).join(', ')}`)
-  } else if (rest.length > LOCATIONS_NAMED) {
-    const named = rest.slice(0, LOCATIONS_NAMED).map((place) => place.name).join(', ')
-    lines.push(
-      `- и ещё ${rest.length} ${plural(rest.length, 'локация', 'локации', 'локаций')}: ${named} и другие — ` +
-        'полный список смотри через list_projects, наизусть не додумывай.',
-    )
+  // Локации сгруппированы по направлениям: «Химки» в новостройках и «Химки»
+  // в коммерции — разные строки, и человеку, спросившему про квартиру, вторая
+  // не подходит. Пока направление одно, заголовок над списком всё равно стоит:
+  // он и говорит, к чему относятся эти цифры.
+  const byCategory = new Map<ProjectCategory, CatalogLocation[]>()
+  for (const place of locations) {
+    const list = byCategory.get(place.category) ?? []
+    list.push(place)
+    byCategory.set(place.category, list)
   }
 
-  const floor = Math.min(...locations.map((place) => place.priceMin))
+  const lines: string[] = []
+  for (const category of PROJECT_CATEGORIES) {
+    const places = byCategory.get(category)
+    if (places === undefined || places.length === 0) continue
+
+    lines.push(`${categoryLabel(category)}:`)
+    const detailed = places.slice(0, LOCATIONS_IN_DETAIL)
+    const rest = places.slice(LOCATIONS_IN_DETAIL)
+
+    for (const place of detailed) {
+      lines.push(
+        `- ${place.name} — ${place.apartmentCount} ${plural(place.apartmentCount, 'квартира', 'квартиры', 'квартир')}: ` +
+          place.rooms
+            .map((item) => `${roomsLabel(item.rooms)} ${item.count} шт. от ${millions(item.priceMin)}`)
+            .join('; '),
+      )
+    }
+
+    if (rest.length > 0 && rest.length <= LOCATIONS_NAMED) {
+      lines.push(`- и ещё: ${rest.map((place) => place.name).join(', ')}`)
+    } else if (rest.length > LOCATIONS_NAMED) {
+      const named = rest.slice(0, LOCATIONS_NAMED).map((place) => place.name).join(', ')
+      lines.push(
+        `- и ещё ${rest.length} ${plural(rest.length, 'локация', 'локации', 'локаций')}: ${named} и другие — ` +
+          'полный список смотри через list_projects, наизусть не додумывай.',
+      )
+    }
+
+    // Пол цены — по направлению, а не по каталогу: как только появится
+    // коммерция или участки, общий минимум придёт от склада, а прозвучит
+    // как цена квартиры.
+    lines.push(
+      `- дешевле ${millions(Math.min(...places.map((place) => place.priceMin)))} в направлении ` +
+        `«${categoryLabel(category)}» нет ничего: не обещай поискать дешевле, этого нет.`,
+    )
+  }
 
   return [
     '# Локации каталога',
     '',
-    'Это весь географический охват агентства, собранный из базы прямо сейчас. Другой локации у нас нет:',
+    'Это весь географический охват агентства, собранный из базы прямо сейчас, по направлениям. Другой локации у нас нет:',
     '',
     lines.join('\n'),
     '',
+    'Локация относится к тому направлению, под заголовком которого она стоит, и ни к какому другому. ' +
+      'Цены одного направления ничего не говорят про другое.',
     'Города и районы, которых нет в этом перечне, не называй, не предлагай и не упоминай как «варианты рядом».',
     'Здесь только места — города и районы, а не названия ЖК. Про конкретный жилой комплекс этот перечень ' +
       'не говорит ничего: спросили про ЖК — проверь через list_projects, а не по этим строкам.',
     'Цены здесь — «от», по каждой комнатности отдельно. Сравнивая локации, сверяйся именно с ними и по той же ' +
       'комнатности: там, где дешевле студии, однокомнатные могут быть дороже. Не пиши «там дешевле», не сравнив числа.',
-    `Самая дешёвая квартира во всём каталоге стоит ${millions(floor)}: дешевле нет ничего и нигде, ` +
-      'не обещай поискать в другой локации то, что дешевле этой цены.',
     'Перечень отвечает на вопрос «где мы работаем и что там вообще есть». Поиск он не заменяет никогда: ' +
       'на запрос про квартиры всё равно вызови search_apartments — даже когда по перечню уже видно, что ' +
       'под условия ничего не подходит. Человек должен увидеть карточки ближайшей альтернативы, а не только текст.',

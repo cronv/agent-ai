@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { cardImages, formatTitle } from './format.ts'
+import { cardHref, cardImages, formatTitle } from './format.ts'
 import type { ApartmentCard } from './types.ts'
 
 /**
@@ -79,5 +79,35 @@ describe('formatTitle', () => {
 
   it('без комнатности и без типа остаётся одна площадь', () => {
     expect(title({ rooms: null })).toBe('54,3 м²')
+  })
+})
+
+describe('cardHref', () => {
+  it('своя страница лота главнее карточки ЖК', () => {
+    const href = cardHref(card({ url: 'https://ndv.ru/flat/1', projectUrl: 'https://ndv.ru/zhk/kosmos' }))
+    expect(href).toBe('https://ndv.ru/flat/1')
+  })
+
+  it('без адреса лота ведёт на карточку ЖК: у ДомКлика адреса квартиры нет вовсе', () => {
+    expect(cardHref(card({ projectUrl: 'https://ndv.ru/zhk/kosmos' }))).toBe('https://ndv.ru/zhk/kosmos')
+  })
+
+  it('без обоих адресов карточка остаётся некликабельной', () => {
+    expect(cardHref(card())).toBeNull()
+    expect(cardHref(card({ url: '  ', projectUrl: '' }))).toBeNull()
+  })
+
+  it('переписка, сохранённая до появления ссылок, не ломает карточку', () => {
+    const old = card({ url: null })
+    delete (old as { projectUrl?: string | null }).projectUrl
+    expect(cardHref(old)).toBeNull()
+  })
+
+  it('ведёт только по http и https: javascript: в href — это чужой код на странице', () => {
+    expect(cardHref(card({ url: 'javascript:alert(1)', projectUrl: 'https://ndv.ru/zhk/kosmos' }))).toBe(
+      'https://ndv.ru/zhk/kosmos',
+    )
+    expect(cardHref(card({ url: 'data:text/html,<script>', projectUrl: null }))).toBeNull()
+    expect(cardHref(card({ url: '/flat/1', projectUrl: null }))).toBeNull()
   })
 })

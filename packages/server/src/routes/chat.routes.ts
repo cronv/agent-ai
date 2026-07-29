@@ -8,6 +8,7 @@ import {
   DialogEngine,
   ensureConversation,
   parseApartmentCards,
+  parseProjectLinks,
   selectApartment,
   type DialogEvent,
   type LeadHandler,
@@ -265,6 +266,8 @@ export function toSseEvent(event: DialogEvent): { name: string; data: Record<str
       return { name: 'apartments', data: { apartments: event.apartments } }
     case 'suggestions':
       return { name: 'suggestions', data: { options: event.options } }
+    case 'projects':
+      return { name: 'projects', data: { projects: event.projects } }
     case 'lead':
       return { name: 'lead', data: { lead: event.lead } }
     case 'error':
@@ -356,6 +359,10 @@ const chatRoutes: FastifyPluginAsync<ChatRoutesOptions> = async (app, options) =
         role: row.role,
         content: row.content,
         apartments: Array.isArray(row.apartments) ? row.apartments : [],
+        // Кнопки перехода на карточки ЖК, которые были под этим ответом.
+        // Виджет показывает их только у последнего сообщения: под каждым
+        // ответом переписки они превратились бы в частокол ссылок.
+        projects: parseProjectLinks(row.projects),
         createdAt: row.createdAt.toISOString(),
       })),
     })

@@ -1,9 +1,9 @@
 import type { ComponentChildren } from 'preact'
 
 import { ApartmentRail } from './Apartments.tsx'
-import { RetryIcon } from './Icons.tsx'
+import { LinkIcon, RetryIcon } from './Icons.tsx'
 import { RichText } from './RichText.tsx'
-import type { ApartmentCard, ChatError, FeedItem } from './types.ts'
+import type { ApartmentCard, ChatError, FeedItem, ProjectLink } from './types.ts'
 import type { ChatPhase } from './useChat.ts'
 
 /**
@@ -21,6 +21,11 @@ import type { ChatPhase } from './useChat.ts'
  * Кнопки быстрых ответов — последний блок ленты, ниже ответа и выше поля
  * ввода. Реплики на них придумала модель, виджет их не сочиняет и текст ответа
  * не разбирает.
+ *
+ * Над ними — переход на карточку ЖК, когда разговор идёт про конкретный
+ * комплекс. Порядок намеренный: сначала то, что продолжает разговор в чате,
+ * и только потом то, что уводит на сайт. Появляется этот блок редко и по
+ * поводу — решает сервер, см. `services/dialog/projects.ts`.
  */
 
 interface MessagesProps {
@@ -33,6 +38,8 @@ interface MessagesProps {
   error: ChatError | null
   /** Реплики на кнопках под последним ответом. */
   suggestions: string[]
+  /** Кнопки перехода на карточки ЖК под последним ответом. */
+  projects: ProjectLink[]
   /** Идентификаторы выбранных квартир — на их карточках стоит «Выбрана». */
   selected: string[]
   onExample: (text: string) => void
@@ -53,6 +60,7 @@ export function Messages({
   examples,
   error,
   suggestions,
+  projects,
   selected,
   onExample,
   onRetry,
@@ -130,6 +138,30 @@ export function Messages({
               Повторить
             </button>
           ) : null}
+        </div>
+      ) : null}
+
+      {/*
+        Переход на карточку ЖК. Под сообщением об ошибке его нет: разговора,
+        к которому он относился, посетитель так и не увидел.
+      */}
+      {projects.length > 0 && error === null ? (
+        <div class="links" aria-label="Жилые комплексы на сайте">
+          {projects.map((project) => (
+            <a
+              class="link-card"
+              key={project.id}
+              href={project.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span class="link-card__text">
+                <span class="link-card__hint">Смотреть на сайте</span>
+                <span class="link-card__name">{project.name}</span>
+              </span>
+              <LinkIcon size={15} />
+            </a>
+          ))}
         </div>
       ) : null}
 

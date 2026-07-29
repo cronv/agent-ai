@@ -34,9 +34,18 @@ interface ProjectViewJson {
   description: string | null
   url: string | null
   imageUrl: string | null
+  category: string
+  categoryLabel: string
   isActive: boolean
   apartments: { active: number; total: number }
   price: { min: number; max: number } | null
+  feeds: { id: string; name: string; isActive: boolean; projectCount: number }[]
+}
+
+interface CategoryJson {
+  value: string
+  label: string
+  count: number
 }
 
 interface ApartmentsJson {
@@ -304,6 +313,162 @@ describe('маршруты жилых комплексов', () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/admin/projects/net-takogo/apartments',
+        headers: { cookie },
+      })
+      expect(response.statusCode).toBe(404)
+    })
+  })
+
+  describe('направления', () => {
+    it('по умолчанию всё, что завёл фид, — новостройки, и список приходит со счётчиками', async () => {
+      await seedProject('Северный парк', [{ rooms: 1, price: 8_000_000 }])
+
+      const response = await app.inject({ method: 'GET', url: '/api/admin/projects', headers: { cookie } })
+      const body = response.json<{ projects: ProjectViewJson[]; categories: CategoryJson[] }>()
+
+      expect(body.projects[0]).toMatchObject({ category: 'novostroyki', categoryLabel: 'Новостройки' })
+      // Пустые направления в списке тоже есть: иначе первый такой ЖК некуда перенести.
+      expect(body.categories).toEqual([
+        { value: 'novostroyki', label: 'Новостройки', count: 1 },
+        { value: 'vtorichka', label: 'Вторичка', count: 0 },
+        { value: 'commercial', label: 'Коммерция', count: 0 },
+        { value: 'suburban', label: 'Загородная недвижимость', count: 0 },
+      ])
+    })
+
+    it('направление меняется в карточке', async () => {
+      const id = await seedProject('Склад на Речной')
+
+      const saved = await app.inject({
+        method: 'PATCH',
+        url: `/api/admin/projects/${id}`,
+        headers: { cookie },
+        payload: { category: 'commercial' },
+      })
+      expect(saved.statusCode).toBe(200)
+      expect(saved.json<ProjectViewJson>()).toMatchObject({
+        category: 'commercial',
+        categoryLabel: 'Коммерция',
+      })
+    })
+
+    it('выдуманное направление не принимается', async () => {
+      const id = await seedProject('Река')
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/api/admin/projects/${id}`,
+        headers: { cookie },
+        payload: { category: 'kosmos' },
+      })
+      expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('удаление ЖК', () => {
+    it('пока фид включён, отказывает и называет его: иначе ЖК вернётся сам', async () => {
+      const id = await seedProject('Северный парк', [{ rooms: 1, price: 8_000_000 }])
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/api/admin/projects/${id}`,
+        headers: { cookie },
+      })
+
+      expect(response.statusCode).toBe(409)
+      const body = response.json<{ error: string; message: string; feeds: { name: string }[] }>()
+      expect(body.error).toBe('feed_active')
+      expect(body.message).toContain('Фид Северный парк')
+      expect(body.feeds).toEqual([
+        // Число ЖК в фиде админка показывает отдельно: выключать выгрузку,
+        // которая кормит весь каталог, ради одной записи нельзя.
+        { id: expect.any(String) as unknown as string, name: 'Фид Северный парк', isActive: true, projectCount: 1 },
+      ])
+
+      // Ничего не удалено: отказ — это отказ.
+      expect(await testDb.project.count({ where: { id } })).toBe(1)
+      expect(await testDb.apartment.count({ where: { projectId: id } })).toBe(1)
+    })
+
+    it('с выключенным фидом удаляет ЖК вместе с квартирами', async () => {
+      const id = await seedProject('Северный парк', [
+        { rooms: 1, price: 8_000_000 },
+        { rooms: 2, price: 14_000_000, isActive: false },
+      ])
+      await seedProject('Река', [{ rooms: 1, price: 7_000_000 }])
+      await testDb.feed.updateMany({ where: { name: 'Фид Северный парк' }, data: { isActive: false } })
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/api/admin/projects/${id}`,
+        headers: { cookie },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json<{ apartmentsDeleted: number }>().apartmentsDeleted).toBe(2)
+      expect(await testDb.project.count({ where: { id } })).toBe(0)
+      // Квартиры уходят вместе с ЖК: лоты без комплекса поиск всё равно показал бы.
+      expect(await testDb.apartment.count({ where: { projectId: id } })).toBe(0)
+      // Соседний ЖК цел.
+      expect(await testDb.apartment.count()).toBe(1)
+    })
+
+    it('force удаляет и при живом фиде — администратор про него уже знает', async () => {
+      const id = await seedProject('Северный парк', [{ rooms: 1, price: 8_000_000 }])
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/api/admin/projects/${id}?force=true`,
+        headers: { cookie },
+      })
+
+      expect(response.statusCode).toBe(200)
+      expect(response.json<{ activeFeeds: { name: string }[] }>().activeFeeds).toHaveLength(1)
+      expect(await testDb.project.count({ where: { id } })).toBe(0)
+    })
+
+    it('называет, сколько ЖК кормит фид: выключать общую выгрузку опасно', async () => {
+      const feed = await testDb.feed.create({ data: { name: 'Общий фид', url: 'https://example.test/all.xml' } })
+      const first = await testDb.project.create({ data: { name: 'Первый', slug: 'pervyy' } })
+      const second = await testDb.project.create({ data: { name: 'Второй', slug: 'vtoroy' } })
+      await testDb.apartment.createMany({
+        data: [
+          { feedId: feed.id, projectId: first.id, externalId: 'a1', price: 5_000_000 },
+          { feedId: feed.id, projectId: second.id, externalId: 'a2', price: 6_000_000 },
+        ],
+      })
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/admin/projects/${first.id}`,
+        headers: { cookie },
+      })
+
+      expect(response.json<ProjectViewJson>().feeds).toEqual([
+        { id: feed.id, name: 'Общий фид', isActive: true, projectCount: 2 },
+      ])
+    })
+
+    it('документы базы знаний переживают удаление ЖК: это материал агентства', async () => {
+      const id = await seedProject('Северный парк')
+      const doc = await testDb.knowledgeDoc.create({
+        data: { projectId: id, filename: 'ипотека.pdf', mimeType: 'application/pdf', sizeBytes: 10 },
+      })
+
+      const response = await app.inject({
+        method: 'DELETE',
+        url: `/api/admin/projects/${id}`,
+        headers: { cookie },
+      })
+      expect(response.statusCode).toBe(200)
+
+      const kept = await testDb.knowledgeDoc.findUnique({ where: { id: doc.id } })
+      expect(kept?.projectId).toBeNull()
+    })
+
+    it('на несуществующий ЖК отвечает 404', async () => {
+      const response = await app.inject({
+        method: 'DELETE',
+        url: '/api/admin/projects/net-takogo',
         headers: { cookie },
       })
       expect(response.statusCode).toBe(404)

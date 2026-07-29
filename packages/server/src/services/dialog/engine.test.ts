@@ -331,6 +331,70 @@ describe('DialogEngine', () => {
     expect(reply.suggestions).toEqual([])
   })
 
+  describe('кнопка перехода на карточку ЖК', () => {
+    it('появляется, когда вся подборка из одного ЖК, и сохраняется в сообщении', async () => {
+      const feed = await createFeed()
+      const project = await createProject({
+        name: 'Космос',
+        district: 'Домодедово',
+        url: 'https://www.ndv.ru/novostrojki/zhk/kosmos',
+      })
+      await createApartment({ feedId: feed.id, projectId: project.id, rooms: 0, price: 4_700_000, area: 29 })
+
+      const { engine, conversationId } = await harness([
+        { tools: [{ name: 'search_apartments', input: { district: 'Домодедово' } }] },
+        { text: ['Все они в одном доме.'] },
+      ])
+
+      const reply = await engine.replyOnce({ conversationId, message: 'Студия в Домодедово' })
+
+      expect(reply.projects).toEqual([
+        { id: project.id, name: 'Космос', url: 'https://www.ndv.ru/novostrojki/zhk/kosmos' },
+      ])
+
+      const saved = await testDb.message.findUniqueOrThrow({ where: { id: reply.messageId } })
+      expect(saved.projects).toEqual(reply.projects)
+    })
+
+    it('без адреса ЖК кнопки нет, а событие не приходит вовсе', async () => {
+      const feed = await createFeed()
+      const project = await createProject({ name: 'Космос', district: 'Домодедово' })
+      await createApartment({ feedId: feed.id, projectId: project.id, rooms: 0, price: 4_700_000 })
+
+      const { engine, conversationId } = await harness([
+        { tools: [{ name: 'search_apartments', input: { district: 'Домодедово' } }] },
+        { text: ['Есть студии.'] },
+      ])
+
+      const events = await collect(engine, conversationId, 'Студия в Домодедово')
+
+      expect(events.some((event) => event.type === 'projects')).toBe(false)
+    })
+
+    it('не повторяется в следующем ответе про тот же ЖК', async () => {
+      const feed = await createFeed()
+      const project = await createProject({
+        name: 'Космос',
+        district: 'Домодедово',
+        url: 'https://www.ndv.ru/novostrojki/zhk/kosmos',
+      })
+      await createApartment({ feedId: feed.id, projectId: project.id, rooms: 0, price: 4_700_000 })
+
+      const { engine, conversationId } = await harness([
+        { tools: [{ name: 'search_apartments', input: { district: 'Домодедово' } }] },
+        { text: ['Есть студии.'] },
+        { tools: [{ name: 'search_apartments', input: { district: 'Домодедово' } }] },
+        { text: ['И вот ещё.'] },
+      ])
+
+      const first = await engine.replyOnce({ conversationId, message: 'Студия в Домодедово' })
+      expect(first.projects).toHaveLength(1)
+
+      const second = await engine.replyOnce({ conversationId, message: 'А ещё?' })
+      expect(second.projects).toEqual([])
+    })
+  })
+
   it('обрезает длинную историю, оставляя запрос посетителя первым сообщением', async () => {
     const { engine, model, conversationId } = await harness([{ text: ['Понял.'] }])
 

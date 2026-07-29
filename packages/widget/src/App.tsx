@@ -115,6 +115,7 @@ export function App({ apiBase }: { apiBase: string }) {
     chat.phase,
     chat.error,
     chat.suggestions,
+    chat.projects,
     contact,
     open,
   ])
@@ -275,6 +276,11 @@ export function App({ apiBase }: { apiBase: string }) {
               // У открытой формы контакта кнопок нет: от человека там ждут
               // имя и телефон, а не следующий вопрос про подборку.
               suggestions={config.quickReplies && contact !== 'form' ? chat.suggestions : []}
+              // Переход на сайт ЖК настройкой кнопок быстрых ответов не
+              // управляется: это не реплика, а ссылка. Но пока открыта форма
+              // контакта, уводить человека со страницы нельзя — он на середине
+              // заполнения.
+              projects={contact === 'form' ? [] : chat.projects}
               selected={chat.selected}
               onExample={send}
               onRetry={chat.retry}

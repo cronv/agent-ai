@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactElement } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { api, errorMessage } from '../lib/api.js'
 import { cx } from '../lib/cx.js'
 import { formatDate, formatMoney, formatMoneyShort, formatNumber, pluralize } from '../lib/format.js'
 import { useApiQuery } from '../lib/useApiQuery.js'
-import type { ApartmentsResponse, ProjectView } from './project-view.js'
+import type { ApartmentsResponse, ProjectCardResponse, ProjectCategory, ProjectView } from './project-view.js'
 import { roomsChipLabel, roomsLabel } from './project-view.js'
+import { ProjectDeleteDialog } from './ProjectDeleteDialog.js'
 import {
   Alert,
   Badge,
@@ -19,8 +20,10 @@ import {
   IconChevronLeft,
   IconExternal,
   IconProjects,
+  IconTrash,
   LoadingBlock,
   PageHeader,
+  Select,
   TBody,
   TD,
   TH,
@@ -51,6 +54,7 @@ interface Draft {
   description: string
   url: string
   imageUrl: string
+  category: ProjectCategory
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -65,6 +69,7 @@ const EMPTY_DRAFT: Draft = {
   description: '',
   url: '',
   imageUrl: '',
+  category: 'novostroyki',
 }
 
 /** ISO-дата с сервера → `2027-06-30` для поля ввода. */
@@ -85,18 +90,21 @@ function toDraft(project: ProjectView): Draft {
     description: project.description ?? '',
     url: project.url ?? '',
     imageUrl: project.imageUrl ?? '',
+    category: project.category,
   }
 }
 
 export function ProjectPage(): ReactElement {
   const { id = '' } = useParams<{ id: string }>()
-  const { data, error, loading, reload } = useApiQuery<ProjectView>(`/projects/${id}`)
+  const navigate = useNavigate()
+  const { data, error, loading, reload } = useApiQuery<ProjectCardResponse>(`/projects/${id}`)
 
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [saving, setSaving] = useState(false)
   const [togglingActive, setTogglingActive] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const [removing, setRemoving] = useState(false)
 
   useEffect(() => {
     if (data) setDraft(toDraft(data))
@@ -126,6 +134,7 @@ export function ProjectPage(): ReactElement {
         description: draft.description,
         url: draft.url,
         imageUrl: draft.imageUrl,
+        category: draft.category,
       })
       setSaved(true)
       reload()
@@ -219,6 +228,13 @@ export function ProjectPage(): ReactElement {
             onChange={(event) => set('name', event.target.value)}
             hint="То же название, что в фиде: по нему связываются квартиры."
           />
+          <Select
+            label="Направление"
+            value={draft.category}
+            onChange={(event) => set('category', event.target.value as ProjectCategory)}
+            options={data.categories.map((category) => ({ value: category.value, label: category.label }))}
+            hint="По направлениям раздел «ЖК» и делится. Ассистент предлагает объекты только того направления, о котором спросили."
+          />
           <Field
             label="Застройщик"
             value={draft.developer}
@@ -275,7 +291,8 @@ export function ProjectPage(): ReactElement {
             optional
             inputMode="url"
             onChange={(event) => set('url', event.target.value)}
-            placeholder="https://developer.ru/severny-park"
+            placeholder="https://www.ndv.ru/novostrojki/zhk/kosmos"
+            hint="Адрес карточки ЖК на сайте. По нему в чате появляется кнопка перехода и открывается клик по карточке квартиры. Пусто — кнопки нет."
           />
           <Field
             label="Ссылка на картинку"
@@ -312,6 +329,36 @@ export function ProjectPage(): ReactElement {
       </Card>
 
       <ProjectApartments projectId={id} />
+
+      {/*
+        Удаление стоит последним и отдельной карточкой: это уборка мусора —
+        ошибочной записи, дубля из кривой выгрузки, — а не способ убрать ЖК
+        из чата. Для второго есть переключатель наверху.
+      */}
+      <Card>
+        <CardHeader
+          title="Удалить ЖК"
+          description="Комплекс и все его квартиры исчезнут из базы. Переписки и лиды останутся: карточки в них сохранены снимком."
+        />
+        <div className="mt-4">
+          <Button
+            variant="danger"
+            icon={<IconTrash className="size-4" />}
+            onClick={() => {
+              setFailure(null)
+              setRemoving(true)
+            }}
+          >
+            Удалить «{data.name}»
+          </Button>
+        </div>
+      </Card>
+
+      <ProjectDeleteDialog
+        project={removing ? data : null}
+        onClose={() => setRemoving(false)}
+        onDeleted={() => navigate('/projects')}
+      />
     </>
   )
 }

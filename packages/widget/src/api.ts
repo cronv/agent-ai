@@ -4,6 +4,7 @@ import type {
   ChatHistory,
   ChatStreamEvent,
   HistoryMessage,
+  ProjectLink,
   SavedLead,
   SelectionResult,
   WidgetConfig,
@@ -126,13 +127,16 @@ export function createApi(baseUrl: string): ChatApi {
     async loadHistory(sessionId: string): Promise<ChatHistory> {
       const response = await request(url(`/api/chat/${encodeURIComponent(sessionId)}`))
       const body = (await response.json()) as { messages?: unknown; selectedApartments?: unknown }
+      const messages = Array.isArray(body.messages) ? body.messages.filter(isHistoryMessage) : []
+      const last = [...messages].reverse().find((message) => message.role === 'assistant')
       return {
-        messages: Array.isArray(body.messages) ? body.messages.filter(isHistoryMessage) : [],
+        messages,
         selectedIds: Array.isArray(body.selectedApartments)
           ? body.selectedApartments
               .map((item) => (isRecord(item) && typeof item['id'] === 'string' ? item['id'] : null))
               .filter((id): id is string => id !== null)
           : [],
+        projects: parseProjectLinks(last?.projects),
       }
     },
 
@@ -269,6 +273,10 @@ export function parseSseBlock(block: string): ChatStreamEvent | null {
         : []
       return options.length > 0 ? { type: 'suggestions', options } : null
     }
+    case 'projects': {
+      const projects = parseProjectLinks(parsed['projects'])
+      return projects.length > 0 ? { type: 'projects', projects } : null
+    }
     case 'lead':
       return isRecord(parsed['lead']) ? { type: 'lead', lead: parsed['lead'] as unknown as SavedLead } : null
     case 'error':
@@ -372,6 +380,28 @@ function plural(value: number, one: string, few: string, many: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Ссылки на карточки ЖК — из потока или из истории.
+ *
+ * Проверка строгая: по этим адресам человек уходит с сайта, и вести он должен
+ * туда, куда сказал сервер, а не по обрывку JSON. Годятся только http и https:
+ * `javascript:` в атрибуте href — это выполнение кода на странице клиента.
+ */
+export function parseProjectLinks(value: unknown): ProjectLink[] {
+  if (!Array.isArray(value)) return []
+  const links: ProjectLink[] = []
+  for (const item of value) {
+    if (!isRecord(item)) continue
+    const id = item['id']
+    const name = item['name']
+    const url = item['url']
+    if (typeof id !== 'string' || typeof name !== 'string' || typeof url !== 'string') continue
+    if (id === '' || !/^https?:\/\//i.test(url)) continue
+    links.push({ id, name, url })
+  }
+  return links
 }
 
 function isHistoryMessage(value: unknown): value is HistoryMessage {

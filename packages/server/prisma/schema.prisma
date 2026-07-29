@@ -52,6 +52,24 @@ enum MessageRole {
   assistant
 }
 
+/// Направление недвижимости, к которому относится объект.
+///
+/// Каталог агентства не ограничен новостройками: вторичка, коммерция и
+/// загородная недвижимость продаются по-разному и смешивать их в одной выдаче
+/// нельзя — «двушка в Химках» и «склад в Химках» не заменяют друг друга.
+/// По умолчанию всё, что заводит импорт фида, попадает в новостройки:
+/// именно такие выгрузки и приходят от застройщиков.
+enum ProjectCategory {
+  /// Новостройки
+  novostroyki
+  /// Вторичка
+  vtorichka
+  /// Коммерция
+  commercial
+  /// Загородная недвижимость
+  suburban
+}
+
 /// Стадия работы с лидом
 enum LeadStatus {
   new
@@ -87,8 +105,12 @@ model Project {
   deadline         DateTime? @db.Date
   finishing        String?
   description      String?
+  /// Адрес карточки ЖК на сайте агентства. Отсюда берётся кнопка перехода
+  /// в чате: пусто — кнопки нет вовсе, битой ссылки посетитель не увидит.
   url              String?
   imageUrl         String?   @map("image_url")
+  /// Направление: новостройки, вторичка, коммерция, загородная.
+  category         ProjectCategory @default(novostroyki)
   isActive         Boolean   @default(true) @map("is_active")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
@@ -98,6 +120,7 @@ model Project {
   knowledgeChunks KnowledgeChunk[]
 
   @@index([isActive])
+  @@index([category])
   @@index([district])
   @@index([metro])
   @@map("projects")
@@ -273,6 +296,10 @@ model Message {
   content        String
   /// Квартиры, показанные этим сообщением, — виджет рендерит карточки отсюда
   apartments     Json?
+  /// Ссылки на карточки ЖК, показанные этим сообщением: `[{ id, name, url }]`.
+  /// Живут на сообщении, а не считаются заново при чтении истории, — иначе
+  /// вернувшийся посетитель увидел бы кнопки не там, где они были.
+  projects       Json?
   /// Вызовы инструментов модели и их результаты
   toolCalls      Json?       @map("tool_calls")
   model          String?

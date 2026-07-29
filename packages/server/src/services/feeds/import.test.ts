@@ -387,6 +387,23 @@ describe('importFeed — фид ДомКлик', () => {
     expect(kept).toMatchObject({ district: 'Старбеево', description: 'Своими словами', metro: 'Планерная' })
   })
 
+  it('адрес карточки ЖК, проставленный руками, синхронизация не трогает', async () => {
+    const feedId = await createDomclickFeed()
+    await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    // Заказчик прислал адреса карточек — их проставляют в админке, а не в фиде.
+    const project = await testDb.project.findFirstOrThrow({ where: { name: 'ЖК «Мишино-2»' } })
+    await testDb.project.update({
+      where: { id: project.id },
+      data: { url: 'https://www.ndv.ru/novostrojki/zhk/mishino-2' },
+    })
+
+    await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })
+
+    const kept = await testDb.project.findUniqueOrThrow({ where: { id: project.id } })
+    expect(kept.url).toBe('https://www.ndv.ru/novostrojki/zhk/mishino-2')
+  })
+
   it('повторный импорт дозаполняет поля ЖК, которые в базе пусты', async () => {
     const feedId = await createDomclickFeed()
     await importFeed(feedId, { db: testDb, download: serves('domclick-multi.xml') })

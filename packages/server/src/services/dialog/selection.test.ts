@@ -114,6 +114,7 @@ describe('describeChoice', () => {
     planImageUrl: null,
     photos: [] as string[],
     url: null,
+    projectUrl: null,
   }
 
   it('пишет комнатность в единственном числе — речь про одну квартиру', () => {
