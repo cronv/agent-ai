@@ -6,11 +6,13 @@ import type { FastifyPluginAsync } from 'fastify'
 import fp from 'fastify-plugin'
 
 import { adminDistDir, widgetBundleFile } from '../config/paths.js'
+import { PREVIEW_PAGE } from '../preview/page.js'
 
 /**
  * Раздача собранной статики:
  *   /admin, /admin/*  — SPA админки (любой внутренний адрес отдаёт index.html)
  *   /widget.js        — бандл виджета для вставки на чужой сайт
+ *   /preview          — тестовая страница с виджетом на витрине агентства
  *
  * Если сборки нет (обычная ситуация при `npm run dev` без предварительного
  * `npm run build`), маршруты всё равно регистрируются и отвечают понятным
@@ -52,6 +54,17 @@ const staticAssets: FastifyPluginAsync<StaticAssetsOptions> = async (app, option
     app.get('/admin', (_request, reply) => reply.code(503).type('text/plain; charset=utf-8').send(hint))
     app.get('/admin/*', (_request, reply) => reply.code(503).type('text/plain; charset=utf-8').send(hint))
   }
+
+  // ── Тестовая страница виджета ────────────────────────────
+  // Витрина агентства, на которой видно, как чат смотрится в бою. Отдаётся
+  // приложением, а не отдельным веб-сервером: тот приходилось поднимать заново
+  // после каждого сна ноутбука.
+  app.get('/preview', (_request, reply) =>
+    reply
+      .type('text/html; charset=utf-8')
+      .header('Cache-Control', 'no-store')
+      .send(PREVIEW_PAGE),
+  )
 
   // ── Виджет ───────────────────────────────────────────────
   app.get('/widget.js', (_request, reply) => {
