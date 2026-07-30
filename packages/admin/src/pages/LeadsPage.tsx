@@ -424,6 +424,22 @@ function StatusSelect({
   )
 }
 
+/**
+ * Ширина карточек в раскрытой строке.
+ *
+ * Подробности живут внутри таблицы, а та прокручивается вбок: ширина ячейки
+ * равна ширине таблицы, а не экрана. Сетка карточек считает столбцы по
+ * контейнеру — и честно строила бы два столбца, второй из которых оказывается
+ * за краем экрана. Ограничение по `100vw` возвращает раскладке ту ширину,
+ * которую человек действительно видит.
+ *
+ * Вычитаемое — то, что съедает ширину до ячейки: до `lg` это отступы страницы
+ * и ячейки (5rem), с `lg` к ним добавляется закреплённое меню на 16rem (итого
+ * 22rem) — без этой поправки на ноутбуке в 1024 px предел вышел бы шире
+ * видимой части.
+ */
+const DETAILS_WIDTH = 'max-w-[min(48rem,calc(100vw-5rem))] lg:max-w-[min(48rem,calc(100vw-22rem))]'
+
 function LeadDetails({ lead }: { lead: LeadRow }): ReactElement {
   const selected = lead.selectedApartments ?? []
 
@@ -448,13 +464,17 @@ function LeadDetails({ lead }: { lead: LeadRow }): ReactElement {
 
       {/* Выбранное стоит выше просмотренного и подписано отдельно: это то,
           ради чего звонок и нужен, а не двадцать карточек, среди которых
-          менеджер угадывает нужную. */}
+          менеджер угадывает нужную.
+
+          Ширину ограничивает сам выделенный блок, а не сетка внутри: иначе
+          цветной фон тянется на всю таблицу, а карточки кончаются на середине,
+          и справа остаётся пустая подсветка. */}
       {selected.length === 0 ? null : (
-        <div className="rounded-xl border border-accent/40 bg-accent-soft p-3">
+        <div className={cx(DETAILS_WIDTH, 'rounded-xl border border-accent/40 bg-accent-soft p-3')}>
           <p className="text-xs font-medium text-accent">
             Выбрал {pluralize(selected.length, ['квартиру', 'квартиры', 'квартир'])} кнопкой в чате
           </p>
-          <ApartmentCards apartments={selected} className="mt-2 max-w-3xl" />
+          <ApartmentCards apartments={selected} emphasis="strong" className="mt-2" />
         </div>
       )}
 
@@ -471,7 +491,7 @@ function LeadDetails({ lead }: { lead: LeadRow }): ReactElement {
             ? 'Квартиры в диалоге не показывали'
             : `Смотрел ${pluralize(lead.apartments.length, ['квартиру', 'квартиры', 'квартир'])}`}
         </p>
-        <ApartmentCards apartments={lead.apartments} className="mt-2 max-w-3xl" />
+        <ApartmentCards apartments={lead.apartments} className={cx('mt-2', DETAILS_WIDTH)} />
       </div>
 
       {lead.conversation === null ? null : (

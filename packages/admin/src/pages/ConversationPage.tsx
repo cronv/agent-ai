@@ -17,15 +17,17 @@ import {
   PageHeader,
 } from '../ui/index.js'
 import { ApartmentCards } from './ApartmentCards.js'
-import type { ConversationDetail, ConversationResponse, MessageView } from './dialog-view.js'
+import type { ConversationDetail, ConversationResponse, LeadCard, MessageView } from './dialog-view.js'
 import { LEAD_STATUS_LABELS, LEAD_STATUS_TONES, TOOL_LABELS, shortUrl, utmSummary } from './dialog-view.js'
 
 /**
  * Переписка целиком: что человек спрашивал и что ему показали.
  *
- * Главный экран перед звонком. Слева лента диалога с сохранённым порядком и
- * ролями, подборки — карточками квартир, как их видел посетитель. Справа
- * контакт и источник: с какой страницы и по какой метке пришёл человек.
+ * Главный экран перед звонком, и порядок на нём — порядок разговора. Сверху
+ * полоса на всю ширину: имя, телефон, статус и выбранная квартира — то, что
+ * менеджер должен увидеть, не вглядываясь. Ниже слева лента диалога с
+ * сохранённым порядком и ролями, справа — источник: с какой страницы и по
+ * какой метке пришёл человек.
  *
  * Из списка сюда приезжает поисковый запрос (`?q=`) — совпадения подсвечены,
  * иначе в переписке на полсотни реплик нужную фразу приходится искать глазами.
@@ -85,6 +87,8 @@ export function ConversationPage(): ReactElement {
         }
       />
 
+      <LeadStrip lead={conversation.leadCard} />
+
       {conversation.truncated ? (
         <Alert tone="warn" title="Показаны не все сообщения">
           Переписка длиннее, чем помещается на экран: видны первые сообщения диалога.
@@ -106,7 +110,6 @@ export function ConversationPage(): ReactElement {
         </Card>
 
         <aside className="flex flex-col gap-5">
-          <LeadPanel conversation={conversation} />
           <SourcePanel conversation={conversation} />
         </aside>
       </div>
@@ -207,70 +210,109 @@ function highlight(text: string, query: string): ReactNode {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Боковая колонка
+//  Полоса над диалогом: кому звонить и про что
 // ─────────────────────────────────────────────────────────────
 
-function LeadPanel({ conversation }: { conversation: ConversationDetail }): ReactElement {
-  const lead = conversation.leadCard
-
+/**
+ * Контакт и выбранная квартира — во всю ширину страницы.
+ *
+ * Раньше и то и другое стояло в боковой колонке на 19rem. За вычетом отступов
+ * карточки, выделенного блока и миниатюры планировки на текст оставалось около
+ * 130 px: «студия, 29 м²» обрезалась до «с», а «8 из 12 эт. · без отделки»
+ * сыпалось по одному слову в строку. Самое важное для звонка не может стоять в
+ * самом узком месте страницы — поэтому оно наверху и во всю ширину, а «Откуда
+ * пришёл» остаётся сбоку, там ему и место.
+ */
+function LeadStrip({ lead }: { lead: LeadCard | null }): ReactElement {
+  // Телефона нет — целая карточка под одну эту мысль была бы пустой заглушкой.
   if (lead === null) {
     return (
-      <Card>
-        <CardHeader title="Контакт" />
-        <p className="mt-3 text-sm text-muted">
-          Посетитель не оставил телефон. Позвонить не получится — остаётся смотреть, что он искал.
-        </p>
-      </Card>
+      <p className="rounded-2xl border border-dashed border-line bg-surface px-5 py-4 text-sm text-muted">
+        Телефон посетитель не оставил — позвонить не получится. Ниже видно, что он спрашивал и что ему
+        показали.
+      </p>
     )
   }
 
+  const selected = lead.selectedApartments ?? []
+  const chosen = selected.length > 0
+
   return (
     <Card>
-      <CardHeader
-        title="Контакт"
-        action={<Badge tone={LEAD_STATUS_TONES[lead.status]}>{LEAD_STATUS_LABELS[lead.status]}</Badge>}
-      />
+      {/*
+        Выбранное есть — контакт уходит в узкую колонку слева, квартиры забирают
+        всю остальную ширину. Выбранного нет — контакт разворачивается в строку
+        на всю полосу, и пустого места под несуществующую подборку не остаётся.
+      */}
+      <div className={cx('grid gap-5', chosen && 'xl:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] xl:gap-6')}>
+        <LeadContact lead={lead} column={chosen} />
 
-      <p className="mt-3 text-base font-medium text-ink">{lead.name}</p>
+        {chosen ? (
+          <div className="rounded-xl border border-accent/40 bg-accent-soft p-3 sm:p-4">
+            <p className="text-xs font-medium text-accent">
+              Выбрал {pluralize(selected.length, ['квартиру', 'квартиры', 'квартир'])} кнопкой в чате
+            </p>
+            {/* Показанные квартиры остаются в самой переписке — выбранные стоят
+                отдельно, крупнее и на цветном фоне. */}
+            <ApartmentCards apartments={selected} emphasis="strong" className="mt-2.5" />
+          </div>
+        ) : null}
+      </div>
+
+      {lead.webhookStatus === 'failed' ? (
+        <Alert tone="danger" title="Не ушёл в CRM" className="mt-5">
+          {lead.webhookError ?? 'Вебхук не принял заявку.'} Заявку нужно перенести руками.
+        </Alert>
+      ) : null}
+    </Card>
+  )
+}
+
+/**
+ * Имя, телефон и статус. Порядок — порядок звонка: кто это, куда набирать, всё
+ * остальное. `column` — стоять ли в узкой колонке рядом с выбранными квартирами
+ * или растянуться строкой на всю полосу.
+ *
+ * Высота 44 px у каждой строки и выравнивает их между собой, и оставляет
+ * телефону палец, а не пиксель.
+ */
+function LeadContact({ lead, column }: { lead: LeadCard; column: boolean }): ReactElement {
+  return (
+    <div className={cx('flex flex-wrap items-start gap-x-10 gap-y-1', column && 'xl:flex-col xl:gap-y-2')}>
+      <p className="flex min-h-11 min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+        <span className="text-lg font-semibold tracking-tight break-words text-ink">{lead.name}</span>
+        <Badge tone={LEAD_STATUS_TONES[lead.status]}>{LEAD_STATUS_LABELS[lead.status]}</Badge>
+      </p>
+
       <a
         href={`tel:${lead.phone}`}
-        className="tabular mt-1 block text-lg font-medium text-accent hover:text-accent-strong"
+        className="tabular flex min-h-11 items-center text-xl font-semibold text-accent hover:text-accent-strong"
       >
         {lead.phoneFormatted}
       </a>
 
+      <p className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-faint">
+        <span>Оставлен {formatDateTime(lead.createdAt)}</span>
+        <Link to="/leads" className="text-muted underline-offset-2 hover:text-accent hover:underline">
+          Все лиды
+        </Link>
+      </p>
+
+      {/* Комментарий занимает свою строку: `w-full` в строке переносит его на
+          новую, а в столбце ничего не меняет — в отличие от `basis-full`,
+          который в `flex-col` схлопнул бы его по высоте. */}
       {lead.comment === null ? null : (
-        <p className="mt-3 text-sm leading-relaxed text-muted">{lead.comment}</p>
+        <p className="w-full min-w-0 text-sm leading-relaxed whitespace-pre-wrap text-muted">
+          {lead.comment}
+        </p>
       )}
-
-      {/* Выбранная квартира — главное в карточке контакта: с неё и начинается
-          разговор менеджера. Показанные видны ниже, в самой переписке. */}
-      {(lead.selectedApartments ?? []).length === 0 ? null : (
-        <div className="mt-4 rounded-xl border border-accent/40 bg-accent-soft p-3">
-          <p className="text-xs font-medium text-accent">
-            Выбрал {pluralize(lead.selectedApartments.length, ['квартиру', 'квартиры', 'квартир'])} кнопкой в чате
-          </p>
-          <ApartmentCards apartments={lead.selectedApartments} className="mt-2 sm:grid-cols-1" />
-        </div>
-      )}
-
-      <p className="mt-3 text-xs text-faint">Оставлен {formatDateTime(lead.createdAt)}</p>
-
-      {lead.webhookStatus === 'failed' ? (
-        <Alert tone="danger" title="Не ушёл в CRM" className="mt-4">
-          {lead.webhookError ?? 'Вебхук не принял заявку.'} Заявку нужно перенести руками.
-        </Alert>
-      ) : null}
-
-      <Link
-        to="/leads"
-        className="mt-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-accent"
-      >
-        Все лиды
-      </Link>
-    </Card>
+    </div>
   )
 }
+
+// ─────────────────────────────────────────────────────────────
+//  Боковая колонка
+// ─────────────────────────────────────────────────────────────
 
 function SourcePanel({ conversation }: { conversation: ConversationDetail }): ReactElement {
   const page = shortUrl(conversation.page)
