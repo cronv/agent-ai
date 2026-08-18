@@ -118,6 +118,25 @@ docker compose logs -f    # смотреть, что происходит
 docker compose down       # остановить
 ```
 
+### Пересборка фронтенда
+
+Если вы правили код виджета или админки и хотите пересобрать их:
+
+```bash
+# Собрать всё внутри контейнера: виджет + админку + сервер
+docker compose exec app npm run build
+
+# Или по отдельности:
+docker compose exec app npm run build:widget    # только виджет
+docker compose exec app npm run build:admin     # только админка
+```
+
+После сборки перезапустите контейнер, чтобы изменения применились:
+
+```bash
+docker compose restart app
+```
+
 ### Если порт 3000 занят
 
 Скопируйте `.env.example` в `.env` и поменяйте в нём `APP_PORT` на свободный,
