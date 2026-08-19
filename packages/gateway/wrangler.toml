@@ -1,0 +1,15 @@
+# Развёртывание шлюза из командной строки:
+#   npx wrangler deploy
+#   npx wrangler secret put GATEWAY_TOKEN
+#
+# Всё то же самое делается мышкой на сайте Cloudflare — см. README.md.
+
+name = "ndv-claude-gate"
+main = "src/worker.js"
+compatibility_date = "2026-08-19"
+
+# Без этого Cloudflare запустит воркер рядом с посетителем — то есть в России,
+# и запрос к Anthropic снова уйдёт с российского адреса. Smart переносит
+# выполнение ближе к Anthropic.
+[placement]
+mode = "smart"

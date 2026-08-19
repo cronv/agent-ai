@@ -64,6 +64,17 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-please}
       SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-string}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Пусто — запросы идут напрямую в Anthropic. Заполняется, когда сервер
+      # стоит в стране, которую Anthropic не обслуживает: тогда сюда пишется
+      # адрес шлюза, например https://proxy.example.com/v1. То же значение
+      # можно задать в админке, в поле «Адрес доступа к Claude».
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      # Второй способ обойти региональное ограничение — обычный HTTP-прокси.
+      # Node применяет их только при NODE_USE_ENV_PROXY=1.
+      NODE_USE_ENV_PROXY: ${NODE_USE_ENV_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-on}
     env_file:
       - path: .env

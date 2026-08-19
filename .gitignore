@@ -12,3 +12,6 @@ npm-debug.log*
 .turbo/
 uploads/
 tmp/
+
+# Локальный кэш wrangler — появляется при `wrangler dev`.
+.wrangler/

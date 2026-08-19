@@ -29,6 +29,12 @@ export interface AnthropicKeyCheckInput {
   apiKey: string
   /** Модель из настроек — заодно проверяем, что её название не переврали. */
   model: string
+  /**
+   * Адрес шлюза. Пусто — идём напрямую в Anthropic. Проверять нужно ровно
+   * тем же путём, каким ходит чат: иначе проверка скажет «всё хорошо» там,
+   * где чат получит отказ.
+   */
+  baseUrl?: string
 }
 
 /**
@@ -38,8 +44,14 @@ export interface AnthropicKeyCheckInput {
 export type AnthropicProbe = (input: AnthropicKeyCheckInput) => Promise<void>
 
 /** Минимальный настоящий запрос к Claude: одно сообщение, один токен ответа. */
-export const sdkProbe: AnthropicProbe = async ({ apiKey, model }) => {
-  const client = new Anthropic({ apiKey, maxRetries: 0, timeout: 20_000 })
+export const sdkProbe: AnthropicProbe = async ({ apiKey, model, baseUrl }) => {
+  const gateway = baseUrl?.trim() ?? ''
+  const client = new Anthropic({
+    apiKey,
+    maxRetries: 0,
+    timeout: 20_000,
+    ...(gateway === '' ? {} : { baseURL: gateway }),
+  })
   await client.messages.create({
     model,
     max_tokens: 1,
@@ -53,6 +65,7 @@ export async function checkAnthropicKey(
 ): Promise<AnthropicKeyCheck> {
   const apiKey = input.apiKey.trim()
   const model = input.model.trim()
+  const baseUrl = input.baseUrl?.trim() ?? ''
 
   if (apiKey === '') {
     return {
@@ -71,7 +84,7 @@ export async function checkAnthropicKey(
   }
 
   try {
-    await probe({ apiKey, model })
+    await probe({ apiKey, model, baseUrl })
     return { ok: true, message: `Ключ работает: пробный запрос к модели ${model} прошёл.`, model }
   } catch (error) {
     return { ...describeFailure(error, model), model }
@@ -88,9 +101,16 @@ function describeFailure(error: unknown, model: string): { ok: boolean; message:
         message: 'Ключ не подошёл: Anthropic его не узнал. Проверьте, что скопировали ключ целиком и без пробелов.',
       }
     case 403:
+      // Формально 403 — это «доступ запрещён», и первым в голову приходит
+      // ключ без прав. Но на практике почти всегда отказывают не ключу,
+      // а адресу: Anthropic обслуживает только страны из своего списка,
+      // России в нём нет. Порядок причин здесь — по частоте, а не по
+      // буквальному смыслу кода, иначе исправный ключ перевыпускают зря.
       return {
         ok: false,
-        message: 'Ключ есть, но у него нет доступа к этой модели. Проверьте права ключа в личном кабинете Anthropic.',
+        message:
+          'Anthropic отказал в доступе. Чаще всего причина в том, что сервер стоит в стране, которую Anthropic не обслуживает, — России в их списке нет. Тогда помогает шлюз в поле «Адрес доступа к Claude». Реже — у ключа действительно нет прав на эту модель в личном кабинете. ' +
+          `Ответ Anthropic: «${messageOf(error)}».`,
       }
     case 404:
       return {

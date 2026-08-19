@@ -367,6 +367,15 @@ export const SETTING_DEFINITIONS = {
     secret: true,
     envFallback: 'ANTHROPIC_API_KEY',
   }),
+  anthropic_base_url: define<string>({
+    type: 'string',
+    default: '',
+    label: 'Адрес доступа к Claude',
+    description:
+      'Оставьте пустым, если сервер стоит в стране, которую Anthropic обслуживает. Россия в этот список не входит: с российского адреса Anthropic отвечает отказом, и сюда нужно вписать адрес шлюза-посредника — например https://proxy.example.com/v1.',
+    group: 'integrations',
+    envFallback: 'ANTHROPIC_BASE_URL',
+  }),
   lead_webhook_url: define<string>({
     type: 'string',
     default: '',

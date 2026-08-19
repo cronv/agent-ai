@@ -1,0 +1,16 @@
+{
+  "name": "@novostroyki/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Шлюз к Claude на Cloudflare Workers — для серверов в регионах, которые Anthropic не обслуживает",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

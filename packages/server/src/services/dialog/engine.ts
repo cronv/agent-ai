@@ -135,7 +135,7 @@ export class DialogEngine {
   private readonly maxTokens: number
   private readonly now: () => Date
 
-  private cachedClient: { key: string; client: ModelClient } | null = null
+  private cachedClient: { key: string; baseUrl: string; client: ModelClient } | null = null
 
   constructor(options: DialogEngineOptions) {
     this.db = options.db
@@ -407,17 +407,20 @@ export class DialogEngine {
 
   /**
    * Клиент модели: подменённый в тестах или собранный по ключу из настроек.
-   * Ключ читается на каждом запросе — его меняют в админке, и перезапускать
-   * сервер ради этого не нужно.
+   * Ключ и адрес шлюза читаются на каждом запросе — их меняют в админке,
+   * и перезапускать сервер ради этого не нужно.
    */
   private async resolveClient(): Promise<ModelClient> {
     if (this.injectedClient) return this.injectedClient
 
     const key = (await this.settings.getAnthropicApiKey()).trim()
     if (key === '') throw missingApiKeyError()
+    // Адрес шлюза меняют в админке так же, как ключ, — значит, он тоже
+    // участвует в сравнении, иначе правка не подхватится до перезапуска.
+    const baseUrl = await this.settings.getAnthropicBaseUrl()
 
-    if (this.cachedClient?.key !== key) {
-      this.cachedClient = { key, client: new AnthropicModelClient({ apiKey: key }) }
+    if (this.cachedClient?.key !== key || this.cachedClient.baseUrl !== baseUrl) {
+      this.cachedClient = { key, baseUrl, client: new AnthropicModelClient({ apiKey: key, baseUrl }) }
     }
     return this.cachedClient.client
   }

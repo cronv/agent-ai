@@ -112,6 +112,12 @@ export function missingApiKeyError(): ModelError {
 
 export interface AnthropicModelClientOptions {
   apiKey: string
+  /**
+   * Адрес API. Пустая строка или `undefined` — напрямую в Anthropic.
+   * Заполняется, когда сервер стоит в стране, которую Anthropic не
+   * обслуживает: тогда запросы идут через шлюз-посредник.
+   */
+  baseUrl?: string
   /** Сколько ждать ответ модели. По умолчанию минута — чат не должен висеть. */
   timeoutMs?: number
   maxRetries?: number
@@ -122,10 +128,14 @@ export class AnthropicModelClient implements ModelClient {
   private readonly sdk: Anthropic
 
   constructor(options: AnthropicModelClientOptions) {
+    const baseUrl = options.baseUrl?.trim() ?? ''
     this.sdk = new Anthropic({
       apiKey: options.apiKey,
       timeout: options.timeoutMs ?? 60_000,
       maxRetries: options.maxRetries ?? 2,
+      // Пустое значение нельзя передавать: SDK примет его за адрес и уйдёт
+      // в никуда. Ключ добавляется, только когда шлюз действительно задан.
+      ...(baseUrl === '' ? {} : { baseURL: baseUrl }),
     })
   }
 
@@ -166,7 +176,14 @@ export function toModelError(error: unknown): ModelError {
           : MODEL_ERROR_MESSAGES.unavailable
     const detail: { status?: number; cause: unknown } = { cause: error }
     if (status !== undefined) detail.status = status
-    return new ModelError(`Anthropic ответил ошибкой ${status ?? '—'}: ${error.message}`, userMessage, detail)
+    // 403 у Anthropic почти всегда означает не «ключу не хватает прав»,
+    // а «этот регион не обслуживается». Разница видна только в логах, и
+    // без подсказки её ищут часами, перевыпуская исправный ключ.
+    const hint =
+      status === 403
+        ? ' — вероятно, запрос уходит из региона, который Anthropic не обслуживает; проверьте настройку «Адрес доступа к Claude»'
+        : ''
+    return new ModelError(`Anthropic ответил ошибкой ${status ?? '—'}: ${error.message}${hint}`, userMessage, detail)
   }
 
   const message = error instanceof Error ? error.message : String(error)

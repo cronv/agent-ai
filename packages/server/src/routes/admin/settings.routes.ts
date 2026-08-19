@@ -94,8 +94,9 @@ const settingsRoutes: FastifyPluginAsync = async (app) => {
     const provided = typeof body.apiKey === 'string' ? body.apiKey.trim() : ''
     const apiKey = provided !== '' ? provided : await app.settings.getAnthropicApiKey()
     const model = await app.settings.get('model_default')
+    const baseUrl = await app.settings.getAnthropicBaseUrl()
 
-    const result = await checkAnthropicKey({ apiKey, model })
+    const result = await checkAnthropicKey({ apiKey, model, baseUrl })
     return reply.send(result)
   })
 }

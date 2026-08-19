@@ -6,7 +6,8 @@
   "workspaces": [
     "packages/server",
     "packages/admin",
-    "packages/widget"
+    "packages/widget",
+    "packages/gateway"
   ],
   "engines": {
     "node": ">=20"

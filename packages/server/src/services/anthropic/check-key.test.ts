@@ -45,6 +45,45 @@ describe('checkAnthropicKey', () => {
     expect(result.message).not.toContain('401')
   })
 
+  it('на 403 первой называет причину, которая встречается чаще, — регион', async () => {
+    const result = await checkAnthropicKey(
+      { apiKey: 'sk-ant-xxx', model: 'claude-haiku-4-5' },
+      failing(403, 'Request not allowed'),
+    )
+
+    expect(result.ok).toBe(false)
+    // Регион должен идти раньше прав ключа: буквальный смысл 403 уводит
+    // на перевыпуск исправного ключа, а чинить надо не его.
+    expect(result.message.indexOf('не обслуживает')).toBeLessThan(result.message.indexOf('прав на эту модель'))
+    // Дословный ответ Anthropic виден: по нему отличают один случай от другого.
+    expect(result.message).toContain('Request not allowed')
+  })
+
+  it('адрес шлюза доходит до запроса — иначе проверка врёт про боевой путь', async () => {
+    let seen: string | undefined = 'не вызывали'
+    const probe: AnthropicProbe = async (input) => {
+      seen = input.baseUrl
+    }
+
+    await checkAnthropicKey(
+      { apiKey: 'sk-ant-xxx', model: 'claude-haiku-4-5', baseUrl: '  https://gate.example.com/v1  ' },
+      probe,
+    )
+
+    expect(seen).toBe('https://gate.example.com/v1')
+  })
+
+  it('без шлюза в запрос уходит пустая строка, а не пробелы', async () => {
+    let seen: string | undefined = 'не вызывали'
+    const probe: AnthropicProbe = async (input) => {
+      seen = input.baseUrl
+    }
+
+    await checkAnthropicKey({ apiKey: 'sk-ant-xxx', model: 'claude-haiku-4-5', baseUrl: '   ' }, probe)
+
+    expect(seen).toBe('')
+  })
+
   it('на 404 объясняет, что дело в названии модели', async () => {
     const result = await checkAnthropicKey({ apiKey: 'sk-ant-xxx', model: 'claude-выдуманная' }, failing(404))
 
