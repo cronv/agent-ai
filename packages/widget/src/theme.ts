@@ -19,7 +19,7 @@ export interface AccentTheme {
   accentDeep: string
 }
 
-const FALLBACK = '#2F6BFF'
+const FALLBACK = '#E61D25'
 
 export function buildAccentTheme(raw: string): AccentTheme {
   const rgb = parseHex(raw) ?? parseHex(FALLBACK)!

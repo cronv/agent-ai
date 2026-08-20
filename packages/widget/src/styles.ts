@@ -85,8 +85,8 @@ export const styles = `
 }
 .launcher:hover { transform: translateY(-2px); box-shadow: 0 20px 42px -12px rgba(var(--accent-rgb), .65), 0 3px 10px rgba(14, 17, 22, .14); }
 .launcher:active { transform: translateY(0); }
-.launcher__icon { display: inline-flex; }
-.launcher__label { white-space: nowrap; }
+.launcher__icon { display: inline-flex; color: white; }
+.launcher__label { white-space: nowrap; color: white; }
 
 .launcher--open {
   width: 56px;
