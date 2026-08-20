@@ -42,7 +42,7 @@ export class ChatApiError extends Error {
 export const DEFAULT_CONFIG: WidgetConfig = {
   enabled: true,
   title: 'Подбор новостройки',
-  accentColor: '#2F6BFF',
+  accentColor: '#E61D25',
   greeting: 'Здравствуйте! Помогу подобрать квартиру в новостройке. Расскажите, что ищете — своими словами.',
   exampleQuestions: [],
   privacyPolicyUrl: null,
