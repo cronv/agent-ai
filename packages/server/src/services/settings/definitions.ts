@@ -312,7 +312,7 @@ export const SETTING_DEFINITIONS = {
   }),
   widget_accent_color: define<string>({
     type: 'string',
-    default: '#2F6BFF',
+    default: '#E61D25',
     label: 'Акцентный цвет',
     description: 'Цвет кнопки и активных элементов чата. Формат #RRGGBB.',
     group: 'widget',
