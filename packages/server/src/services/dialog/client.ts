@@ -131,7 +131,7 @@ export class AnthropicModelClient implements ModelClient {
     const baseUrl = options.baseUrl?.trim() ?? ''
     this.sdk = new Anthropic({
       apiKey: options.apiKey,
-      timeout: options.timeoutMs ?? 60_000,
+      timeout: options.timeoutMs ?? 300_000,
       maxRetries: options.maxRetries ?? 2,
       // Пустое значение нельзя передавать: SDK примет его за адрес и уйдёт
       // в никуда. Ключ добавляется, только когда шлюз действительно задан.
