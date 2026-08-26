@@ -1,6 +1,4 @@
 # Dockerfile: build nginx with HTTP/3 (quiche) and produce a runtime image based on alpine:latest
-# WARNING: template - requires testing and adaptation to exact quiche/nginx versions
-
 ARG ALPINE_VERSION=latest
 ARG NGINX_GIT="https://github.com/nginx/nginx.git"
 ARG NGINX_BRANCH="master"
@@ -9,6 +7,12 @@ ARG QUICHE_TAG="master"
 
 # ---- build stage ----
 FROM alpine:3.18 AS builder
+
+# Перезаdeclare ARG внутри stage, чтобы они стали доступны для RUN
+ARG NGINX_GIT
+ARG NGINX_BRANCH
+ARG QUICHE_GIT
+ARG QUICHE_TAG
 
 RUN apk add --no-cache \
     build-base \
@@ -29,27 +33,26 @@ RUN apk add --no-cache \
 WORKDIR /build
 
 # Clone nginx and quiche (shallow)
-RUN git clone --depth 1 --branch ${NGINX_BRANCH} ${NGINX_GIT} nginx
-RUN git clone --depth 1 --branch ${QUICHE_TAG} ${QUICHE_GIT} quiche
+RUN git clone --depth 1 --branch ${NGINX_BRANCH} ${NGINX_GIT} nginx && \
+    git clone --depth 1 --branch ${QUICHE_TAG} ${QUICHE_GIT} quiche
 
 # Build quiche (this will also build required BoringSSL/openssl-compat per quiche instructions)
 WORKDIR /build/quiche
-RUN git submodule update --init --recursive || true
-RUN cargo build --release || true
+RUN git submodule update --init --recursive && \
+    cargo build --release --package quiche
 
 # Configure and build nginx with HTTP/3/quic support
 WORKDIR /build/nginx
 
-# NOTE: the flags below are template-like and may require adjustments depending on quiche/nginx versions
 RUN ./auto/configure \
-    --with-cc-opt='-I/build/quiche/include' \
+    --with-cc-opt='-I/build/quiche/quiche/include' \
     --with-ld-opt='-L/build/quiche/target/release -Wl,-rpath,/build/quiche/target/release' \
     --with-http_v3_module \
     --with-stream_quic_module \
-    --with-openssl=/build/quiche/deps/boringssl \
-    --prefix=/etc/nginx || true
-
-RUN make -j$(nproc) || true && make install || true
+    --with-openssl=/build/quiche/quiche/deps/boringssl \
+    --prefix=/etc/nginx && \
+    make -j$(nproc) && \
+    make install
 
 # ---- runtime stage ----
 FROM alpine:${ALPINE_VERSION} AS runtime
