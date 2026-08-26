@@ -1,0 +1,10 @@
+# SSL certificates (not tracked)
+nginx/ssl/fullchain.pem
+nginx/ssl/fullchain*[0-9].pem
+nginx/ssl/privkey.pem
+nginx/ssl/privkey*[0-9].pem
+
+# Nginx default config with local customizations
+nginx/default.conf
+nginx/cors_allowed_origins.conf
+nginx/server*[0-9].conf
