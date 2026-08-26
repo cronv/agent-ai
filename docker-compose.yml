@@ -10,8 +10,6 @@ services:
       POSTGRES_USER: novostroyki
       POSTGRES_PASSWORD: novostroyki
       POSTGRES_DB: novostroyki
-      # Русская локаль в БД не нужна: полнотекстовый поиск использует
-      # конфигурацию russian, она встроена в PostgreSQL независимо от локали.
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
     ports:
       - "${POSTGRES_PORT:-5433}:5432"
@@ -24,9 +22,6 @@ services:
       retries: 30
       start_period: 5s
 
-  # Отдельная база для автотестов. Не поднимается вместе с остальными:
-  # запускается только командой `npm run db:test:up` (профиль test).
-  # Данные держатся в памяти — тесты стартуют с чистого листа.
   postgres-test:
     profiles: ["test"]
     image: postgres:16-alpine
@@ -59,18 +54,12 @@ services:
       HOST: 0.0.0.0
       NODE_ENV: production
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8080}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-please}
       SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-long-random-string}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      # Пусто — запросы идут напрямую в Anthropic. Заполняется, когда сервер
-      # стоит в стране, которую Anthropic не обслуживает: тогда сюда пишется
-      # адрес шлюза, например https://proxy.example.com/v1. То же значение
-      # можно задать в админке, в поле «Адрес доступа к Claude».
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
-      # Второй способ обойти региональное ограничение — обычный HTTP-прокси.
-      # Node применяет их только при NODE_USE_ENV_PROXY=1.
       NODE_USE_ENV_PROXY: ${NODE_USE_ENV_PROXY:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}
       HTTP_PROXY: ${HTTP_PROXY:-}
@@ -79,8 +68,8 @@ services:
     env_file:
       - path: .env
         required: false
-    ports:
-      - "${APP_PORT:-3000}:3000"
+    expose:
+      - "3000"
     healthcheck:
       test:
         - CMD
@@ -91,6 +80,24 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+
+  nginx:
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
+    image: nginx-quic:local
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${APP_PORT:-8080}:80"    # HTTP (host -> nginx)
+      - "443:443"                 # HTTPS/TCP
+      - "443:443/udp"             # HTTPS/QUIC (HTTP/3) — UDP mapping required
+    volumes:
+      - ./docker/nginx:/etc/nginx:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - default
 
 volumes:
   pgdata:
