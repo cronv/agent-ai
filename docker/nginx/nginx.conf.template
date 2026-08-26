@@ -1,51 +1,45 @@
-# nginx.conf.template — example of minimal HTTP/3-capable server block
-# Replace server_name and TLS certificates with your production values.
-
-worker_processes  1;
+# user nginx;  ← ЗАКОММЕНТИРОВАЛИ: образ запускается непривилегированным
+worker_processes  auto;
+error_log  /var/log/nginx/error.log warn;
+pid        /var/run/nginx.pid;
 
 events {
-  worker_connections  1024;
+    worker_connections 1024;
+    multi_accept on;
 }
 
 http {
-  include       mime.types;
-  default_type  application/octet-stream;
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
 
-  sendfile        on;
-  keepalive_timeout  65;
+    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                    '$status $body_bytes_sent "$http_referer" '
+                    '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log /var/log/nginx/access.log main;
 
-  server {
-    listen 80;
-    server_name _;
-    return 301 https://$host$request_uri;
-  }
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    server_tokens off;
+    client_max_body_size 8m;
 
-  server {
-    # Listen for TLS (HTTP/2) over TCP
-    listen 443 ssl http2;
+    # Gzip compression
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_min_length 1024;
+    gzip_comp_level 6;
+    gzip_types
+        text/plain text/css text/javascript application/javascript
+        application/json application/xml image/svg+xml font/woff2
+        application/x-font-ttf application/font-woff;
 
-    # Listen for QUIC/HTTP3 over UDP (requires nginx built with quic/http_v3)
-    listen 443 quic reuseport;
+    # Open file cache
+    open_file_cache max=1000 inactive=20s;
+    open_file_cache_valid 30s;
+    open_file_cache_min_uses 2;
+    open_file_cache_errors on;
 
-    server_name example.com;
-
-    ssl_certificate /etc/ssl/certs/fullchain.pem;
-    ssl_certificate_key /etc/ssl/private/privkey.pem;
-
-    ssl_protocols TLSv1.3;
-    ssl_prefer_server_ciphers off;
-
-    # Optional: tune ciphers for modern TLS 1.3
-    ssl_ciphers TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256;
-
-    # Inform clients that HTTP/3 is available
-    add_header Alt-Svc 'h3=":443"';
-    add_header QUIC-Status $quic;
-
-    root /usr/share/nginx/html;
-
-    location / {
-      try_files $uri $uri/ =404;
-    }
-  }
+    include /etc/nginx/conf.d/*.conf;
 }

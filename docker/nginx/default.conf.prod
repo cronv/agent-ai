@@ -1,51 +1,45 @@
-# default.conf — адаптированная версия pasted2.txt
-# Upstream для Node.js сервера
 upstream node_backend_ai {
-    server app:3000;            # внутри Docker-сети обращаемся к сервису app
+    server app:3000;
     keepalive 64;
 }
 
-# HTTP -> HTTPS redirect (optional when using nginx as proxy)
+# HTTP -> HTTPS redirect
 server {
     listen 80;
-    server_name _; # catch-all
+    server_name _;
     return 301 https://$host$request_uri;
 }
 
-# Основной домен: проксирование на Node.js с поддержкой HTTP/2 и HTTP/3
+# ═══════════════════════════════════════════════
+# Основной сервер
+# ═══════════════════════════════════════════════
 server {
-    # Для HTTP/2 (TCP) и HTTP/3 (QUIC/UDP) настроим прослушивание:
-    listen 443 ssl http2;
-    # HTTP/3 requires an nginx build with QUIC support. See notes below.
-    listen 443 quic reuseport;
+    listen 443 ssl;
+    listen 443 quic reuseport;   # ← reuseport ТОЛЬКО ЗДЕСЬ (первый server-блок)
+    http2 on;                    # ← новый синтаксис
 
     server_name ваш-сервер2.ru www.ваш-сервер2.ru;
 
-    # Пути к сертификатам — должны быть смонтированы в контейнере:
-    ssl_certificate ssl/fullchain.pem;
-    ssl_certificate_key ssl/privkey.pem;
+    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
 
-    # SSL настройки: минимально — TLSv1.3 для HTTP/3
-    ssl_protocols TLSv1.3 TLSv1.2;
+    ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers off;
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 1d;
     ssl_session_tickets off;
+    ssl_early_data on;
 
     # Security headers
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # Advertise HTTP/3 to clients via Alt-Svc (RFC) and expose QUIC status header
-    # ma — max age in seconds; h3 — HTTP/3 identifier.
-    # Если серверный образ nginx НЕ поддерживает QUIC/HTTP3 — эти заголовки будут объявлять, но соединения по UDP не установятся.
+    # HTTP/3 advertisement
     add_header Alt-Svc 'h3=":443"; ma=86400' always;
-    add_header QUIC-Status $quic;
+    add_header QUIC-Status $http3 always;
 
-    # ---------- Проксирование всего трафика на Node.js ----------
     location / {
         proxy_pass http://node_backend_ai;
 
@@ -59,31 +53,30 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
 
-        # Timeouts
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
     }
 
-    # Error page
     error_page 500 502 503 504 /50x.html;
     location = /50x.html {
         root /usr/share/nginx/html;
     }
 }
 
-# Catch-all для неизвестных доменов (отдаёт 444)
+# ═══════════════════════════════════════════════
+# Catch-all для неизвестных доменов
+# ═══════════════════════════════════════════════
 server {
-    listen 443 ssl http2;
-    listen 443 quic reuseport;
+    listen 443 ssl;
+    listen 443 quic;             # ← БЕЗ reuseport! (уже указан выше)
+    http2 on;                    # ← новый синтаксис
 
     server_name _;
 
-    ssl_certificate ssl/fullchain.pem;
-    ssl_certificate_key ssl/privkey.pem;
-    ssl_protocols TLSv1.3 TLSv1.2;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 1d;
+    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
 
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
