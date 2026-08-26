@@ -25,7 +25,8 @@ RUN apk add --no-cache \
     python3 \
     perl \
     curl \
-    musl-dev
+    musl-dev \
+    clang-dev
 
 # Install latest Rust via rustup (Alpine's package version is too old for edition 2024)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
