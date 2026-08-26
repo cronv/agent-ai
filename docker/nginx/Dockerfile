@@ -6,7 +6,7 @@ ARG QUICHE_GIT="https://github.com/cloudflare/quiche.git"
 ARG QUICHE_TAG="master"
 
 # ---- build stage ----
-FROM alpine:3.18 AS builder
+FROM alpine:latest AS builder
 
 # Перезаdeclare ARG внутри stage, чтобы они стали доступны для RUN
 ARG NGINX_GIT
