@@ -8,7 +8,6 @@ ARG QUICHE_TAG="master"
 # ---- build stage ----
 FROM alpine:latest AS builder
 
-# Перезаdeclare ARG внутри stage, чтобы они стали доступны для RUN
 ARG NGINX_GIT
 ARG NGINX_BRANCH
 ARG QUICHE_GIT
@@ -26,9 +25,15 @@ RUN apk add --no-cache \
     python3 \
     perl \
     curl \
-    rust \
-    cargo \
     musl-dev
+
+# Install latest Rust via rustup (Alpine's package version is too old for edition 2024)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    . "$HOME/.cargo/env" && \
+    rustup default stable
+
+# Add cargo to PATH for subsequent RUN commands
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /build
 
@@ -36,7 +41,7 @@ WORKDIR /build
 RUN git clone --depth 1 --branch ${NGINX_BRANCH} ${NGINX_GIT} nginx && \
     git clone --depth 1 --branch ${QUICHE_TAG} ${QUICHE_GIT} quiche
 
-# Build quiche (this will also build required BoringSSL/openssl-compat per quiche instructions)
+# Build quiche
 WORKDIR /build/quiche
 RUN git submodule update --init --recursive && \
     cargo build --release --package quiche
