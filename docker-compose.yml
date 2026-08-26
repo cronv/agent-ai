@@ -93,10 +93,7 @@ services:
       start_period: 20s
 
   nginx:
-    # Build nginx image from the repository Dockerfile (supports HTTP/3)
-    build:
-      context: ./docker/nginx
-      dockerfile: Dockerfile
+    image: macbre/nginx-http3:latest
     restart: unless-stopped
     depends_on:
       - app
